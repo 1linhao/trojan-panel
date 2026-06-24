@@ -116,3 +116,8 @@ rule-providers:
     url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/applications.txt"
     path: ./ruleset/applications.yaml
     interval: 86400`
+
+const SingBoxRoute = `{
+  "auto_detect_interface": true,
+  "final": "PROXY"
+}`

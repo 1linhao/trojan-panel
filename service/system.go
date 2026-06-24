@@ -56,6 +56,12 @@ func SelectSystemByName(name *string) (vo.SystemVo, error) {
 			logrus.Errorln(fmt.Sprintf("failed to read default template of Clash rule err: %v", err))
 			return systemVo, errors.New(constant.SysError)
 		}
+		// 读取sing-box路由规则默认模板文件
+		singBoxRuleContent, err := os.ReadFile(constant.SingBoxRuleFilePath)
+		if err != nil {
+			logrus.Errorln(fmt.Sprintf("failed to read default template of sing-box route err: %v", err))
+			return systemVo, errors.New(constant.SysError)
+		}
 		// 读取Xray默认模板文件
 		xrayTemplateContent, err := os.ReadFile(constant.XrayTemplateFilePath)
 		if err != nil {
@@ -80,6 +86,7 @@ func SelectSystemByName(name *string) (vo.SystemVo, error) {
 			EmailPassword:               systemEmailConfigBo.EmailPassword,
 			SystemName:                  systemTemplateConfigBo.SystemName,
 			ClashRule:                   string(clashRuleContent),
+			SingBoxRule:                 string(singBoxRuleContent),
 			XrayTemplate:                string(xrayTemplateContent),
 		}
 
@@ -156,6 +163,21 @@ func UpdateSystemById(systemDto dto.SystemUpdateDto) error {
 		// 修改Clash规则默认模板文件
 		if err := os.WriteFile(constant.ClashRuleFilePath, []byte(*systemDto.ClashRule), 0666); err != nil {
 			logrus.Errorln(fmt.Sprintf("write Clash rule default template file err: %v", err))
+		}
+	}
+	if systemDto.SingBoxRule != nil {
+		var routeConfig map[string]interface{}
+		if err = json.Unmarshal([]byte(*systemDto.SingBoxRule), &routeConfig); err != nil {
+			logrus.Errorf("systemDto SingBoxRule deserialization err: %v", err)
+			return err
+		}
+		routeConfigStr, err := json.MarshalIndent(routeConfig, "", "  ")
+		if err != nil {
+			logrus.Errorf("SingBoxRule serialization err: %v", err)
+			return err
+		}
+		if err := os.WriteFile(constant.SingBoxRuleFilePath, routeConfigStr, 0666); err != nil {
+			logrus.Errorln(fmt.Sprintf("write sing-box route default template file err: %v", err))
 		}
 	}
 	if systemDto.XrayTemplate != nil {

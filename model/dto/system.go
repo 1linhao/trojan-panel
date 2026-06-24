@@ -19,5 +19,6 @@ type SystemUpdateDto struct {
 
 	SystemName   *string `json:"systemName" form:"systemName" validate:"omitempty,min=0,max=32"`
 	ClashRule    *string `json:"clashRule" form:"clashRule" validate:"omitempty,min=0,max=102400"`
+	SingBoxRule  *string `json:"singBoxRule" form:"singBoxRule" validate:"omitempty,min=0,max=102400"`
 	XrayTemplate *string `json:"xrayTemplate" form:"xrayTemplate" validate:"omitempty,min=0,max=10240"`
 }

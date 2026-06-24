@@ -206,6 +206,22 @@ m = g(r.sub, p.sub) && r.obj == p.obj && r.act == p.act
 		}
 	}
 
+	singBoxRuleFilePath := constant.SingBoxRuleFilePath
+	if !util.Exists(singBoxRuleFilePath) {
+		file, err := os.Create(singBoxRuleFilePath)
+		if err != nil {
+			logrus.Errorf("create file sing-box-route.json err: %v", err)
+			panic(err)
+		}
+		defer file.Close()
+
+		_, err = file.WriteString(constant.SingBoxRoute)
+		if err != nil {
+			logrus.Errorf("sing-box-route.json file write err: %v", err)
+			panic(err)
+		}
+	}
+
 	xrayTemplateFilePath := constant.XrayTemplateFilePath
 	if !util.Exists(xrayTemplateFilePath) {
 		file, err := os.Create(xrayTemplateFilePath)

@@ -4,8 +4,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"strconv"
 	"trojan-panel/model/constant"
-	"trojan-panel/model/dto"
 	"trojan-panel/model/vo"
 	"trojan-panel/service"
 )
@@ -21,20 +21,31 @@ func ClashSubscribe(c *gin.Context) {
 	vo.Success(fmt.Sprintf("/api/auth/subscribe/%s", base64.StdEncoding.EncodeToString([]byte(password))), c)
 }
 
-// ClashSubscribeForSb 获取指定人的Clash订阅地址
+// ClashSubscribeForSb 获取sing-box订阅地址，传id时获取指定用户，不传id时获取当前用户
 func ClashSubscribeForSb(c *gin.Context) {
-	var accountRequiredIdDto dto.RequiredIdDto
-	_ = c.ShouldBindQuery(&accountRequiredIdDto)
-	if err := validate.Struct(&accountRequiredIdDto); err != nil {
-		vo.Fail(constant.ValidateFailed, c)
-		return
+	var (
+		accountId *uint
+		username  *string
+	)
+	if idStr := c.Query("id"); idStr != "" {
+		id, err := strconv.ParseUint(idStr, 10, 32)
+		if err != nil || id == 0 {
+			vo.Fail(constant.ValidateFailed, c)
+			return
+		}
+		idUint := uint(id)
+		accountId = &idUint
+	} else {
+		accountVo := service.GetCurrentAccount(c)
+		accountId = &accountVo.Id
+		username = &accountVo.Username
 	}
-	password, err := service.SelectConnectPassword(accountRequiredIdDto.Id, nil)
+	password, err := service.SelectConnectPassword(accountId, username)
 	if err != nil {
 		vo.Fail(err.Error(), c)
 		return
 	}
-	vo.Success(fmt.Sprintf("/api/auth/subscribe/%s", base64.StdEncoding.EncodeToString([]byte(password))), c)
+	vo.Success(fmt.Sprintf("/api/auth/subscribe/%s?client=sing-box", base64.StdEncoding.EncodeToString([]byte(password))), c)
 }
 
 // Subscribe 订阅
@@ -48,7 +59,19 @@ func Subscribe(c *gin.Context) {
 	}
 	pass := string(tokenDecode)
 
-	//if strings.HasPrefix(userAgent, constant.ClashforWindows) {
+	if c.Query("client") == "sing-box" {
+		account, userInfo, singBoxConfigJson, err := service.SubscribeSingBox(pass)
+		if err != nil {
+			vo.Fail(err.Error(), c)
+			return
+		}
+		c.Header("content-disposition", fmt.Sprintf("attachment; filename=%s-sing-box.json", *account.Username))
+		c.Header("profile-update-interval", "12")
+		c.Header("subscription-userinfo", userInfo)
+		c.String(200, string(singBoxConfigJson))
+		return
+	}
+
 	account, userInfo, clashConfigYaml, systemConfig, err := service.SubscribeClash(pass)
 	if err != nil {
 		vo.Fail(err.Error(), c)

@@ -276,3 +276,277 @@ func SubscribeClash(pass string) (*model.Account, string, []byte, vo.SystemVo, e
 	}
 	return account, userInfo, clashConfigYaml, systemConfig, nil
 }
+
+func SubscribeSingBox(pass string) (*model.Account, string, []byte, error) {
+	account, err := dao.SelectAccountClashSubscribe(pass)
+	if err != nil {
+		return nil, "", []byte{}, err
+	}
+	nodes, err := dao.SelectNodes()
+	if err != nil {
+		return nil, "", []byte{}, err
+	}
+
+	userInfo := fmt.Sprintf("upload=%d; download=%d; total=%d; expire=%d",
+		*account.Upload,
+		*account.Download,
+		*account.Quota,
+		*account.ExpireTime/1000)
+
+	outbounds := make([]map[string]interface{}, 0)
+	proxyTags := make([]string, 0)
+	for _, item := range nodes {
+		outbound, err := buildSingBoxOutbound(item, pass, *account.Username)
+		if err != nil {
+			return nil, "", []byte{}, err
+		}
+		if outbound == nil {
+			continue
+		}
+		outbounds = append(outbounds, outbound)
+		proxyTags = append(proxyTags, *item.Name)
+	}
+	if len(proxyTags) > 0 {
+		outbounds = append(outbounds, map[string]interface{}{
+			"type":      "selector",
+			"tag":       "PROXY",
+			"outbounds": proxyTags,
+			"default":   proxyTags[0],
+		})
+	}
+	outbounds = append(outbounds, map[string]interface{}{"type": "direct", "tag": "DIRECT"})
+	outbounds = append(outbounds, map[string]interface{}{"type": "block", "tag": "REJECT"})
+
+	systemName := constant.SystemName
+	systemConfig, err := SelectSystemByName(&systemName)
+	if err != nil {
+		return nil, "", []byte{}, errors.New(constant.SysError)
+	}
+	routeConfig := map[string]interface{}{}
+	if systemConfig.SingBoxRule != "" {
+		if err = json.Unmarshal([]byte(systemConfig.SingBoxRule), &routeConfig); err != nil {
+			logrus.Errorf("sing-box route config deserialization err: %v", err)
+			return nil, "", []byte{}, errors.New(constant.SysError)
+		}
+	}
+	if len(routeConfig) == 0 {
+		routeConfig["auto_detect_interface"] = true
+		routeConfig["final"] = "PROXY"
+	}
+
+	singBoxConfig := map[string]interface{}{
+		"log": map[string]interface{}{
+			"level": "info",
+		},
+		"inbounds": []map[string]interface{}{
+			{
+				"type":                       "mixed",
+				"tag":                        "mixed-in",
+				"listen":                     "127.0.0.1",
+				"listen_port":                2080,
+				"sniff":                      true,
+				"sniff_override_destination": true,
+			},
+		},
+		"outbounds": outbounds,
+		"route":     routeConfig,
+	}
+	singBoxConfigJson, err := json.MarshalIndent(singBoxConfig, "", "  ")
+	if err != nil {
+		return nil, "", []byte{}, errors.New(constant.SysError)
+	}
+	return account, userInfo, singBoxConfigJson, nil
+}
+
+func buildSingBoxOutbound(item model.Node, pass string, username string) (map[string]interface{}, error) {
+	switch *item.NodeTypeId {
+	case constant.Xray:
+		return buildSingBoxXrayOutbound(item, pass)
+	case constant.TrojanGo:
+		nodeTrojanGo, err := dao.SelectNodeTrojanGoById(item.NodeSubId)
+		if err != nil {
+			return nil, err
+		}
+		outbound := map[string]interface{}{
+			"type":        "trojan",
+			"tag":         *item.Name,
+			"server":      *item.Domain,
+			"server_port": *item.Port,
+			"password":    pass,
+			"tls": map[string]interface{}{
+				"enabled":     true,
+				"server_name": *nodeTrojanGo.Sni,
+			},
+		}
+		if *nodeTrojanGo.WebsocketEnable == 1 {
+			outbound["transport"] = map[string]interface{}{
+				"type":    "ws",
+				"path":    *nodeTrojanGo.WebsocketPath,
+				"headers": map[string]interface{}{"Host": *nodeTrojanGo.WebsocketHost},
+			}
+		}
+		return outbound, nil
+	case constant.Hysteria:
+		nodeHysteria, err := dao.SelectNodeHysteriaById(item.NodeSubId)
+		if err != nil {
+			return nil, err
+		}
+		outbound := map[string]interface{}{
+			"type":        "hysteria",
+			"tag":         *item.Name,
+			"server":      *item.Domain,
+			"server_port": *item.Port,
+			"auth_str":    pass,
+			"up_mbps":     *nodeHysteria.UpMbps,
+			"down_mbps":   *nodeHysteria.DownMbps,
+			"tls": map[string]interface{}{
+				"enabled":     true,
+				"server_name": *nodeHysteria.ServerName,
+				"insecure":    *nodeHysteria.Insecure == 1,
+			},
+		}
+		if nodeHysteria.Obfs != nil && *nodeHysteria.Obfs != "" {
+			outbound["obfs"] = *nodeHysteria.Obfs
+		}
+		return outbound, nil
+	case constant.NaiveProxy:
+		return map[string]interface{}{
+			"type":        "http",
+			"tag":         *item.Name,
+			"server":      *item.Domain,
+			"server_port": *item.Port,
+			"username":    username,
+			"password":    pass,
+			"tls": map[string]interface{}{
+				"enabled": true,
+			},
+		}, nil
+	case constant.Hysteria2:
+		nodeHysteria2, err := dao.SelectNodeHysteria2ById(item.NodeSubId)
+		if err != nil {
+			return nil, err
+		}
+		outbound := map[string]interface{}{
+			"type":        "hysteria2",
+			"tag":         *item.Name,
+			"server":      *item.Domain,
+			"server_port": *item.Port,
+			"password":    pass,
+			"up_mbps":     *nodeHysteria2.UpMbps,
+			"down_mbps":   *nodeHysteria2.DownMbps,
+			"tls": map[string]interface{}{
+				"enabled":     true,
+				"server_name": *nodeHysteria2.ServerName,
+				"insecure":    *nodeHysteria2.Insecure == 1,
+			},
+		}
+		if nodeHysteria2.ObfsPassword != nil && *nodeHysteria2.ObfsPassword != "" {
+			outbound["obfs"] = map[string]interface{}{
+				"type":     "salamander",
+				"password": *nodeHysteria2.ObfsPassword,
+			}
+		}
+		return outbound, nil
+	}
+	return nil, nil
+}
+
+func buildSingBoxXrayOutbound(item model.Node, pass string) (map[string]interface{}, error) {
+	nodeXray, err := dao.SelectNodeXrayById(item.NodeSubId)
+	if err != nil {
+		return nil, err
+	}
+	streamSettings := bo.StreamSettings{}
+	if nodeXray.StreamSettings != nil && *nodeXray.StreamSettings != "" {
+		if err = json.Unmarshal([]byte(*nodeXray.StreamSettings), &streamSettings); err != nil {
+			logrus.Errorln(fmt.Sprintf("StreamSettings JSON deserialization err: %v", err))
+			return nil, errors.New(constant.SysError)
+		}
+	}
+	settings := bo.Settings{}
+	if nodeXray.Settings != nil && *nodeXray.Settings != "" {
+		if err = json.Unmarshal([]byte(*nodeXray.Settings), &settings); err != nil {
+			logrus.Errorln(fmt.Sprintf("Settings JSON deserialization err: %v", err))
+			return nil, errors.New(constant.SysError)
+		}
+	}
+
+	outbound := map[string]interface{}{
+		"type":        *nodeXray.Protocol,
+		"tag":         *item.Name,
+		"server":      *item.Domain,
+		"server_port": *item.Port,
+	}
+	switch *nodeXray.Protocol {
+	case constant.ProtocolVless:
+		outbound["uuid"] = util.GenerateUUID(pass)
+		if nodeXray.XrayFlow != nil && *nodeXray.XrayFlow != "" {
+			outbound["flow"] = *nodeXray.XrayFlow
+		}
+	case constant.ProtocolVmess:
+		outbound["uuid"] = util.GenerateUUID(pass)
+		outbound["security"] = "auto"
+	case constant.ProtocolTrojan:
+		outbound["password"] = pass
+	case constant.ProtocolShadowsocks:
+		outbound["type"] = "shadowsocks"
+		outbound["method"] = *nodeXray.XraySSMethod
+		outbound["password"] = pass
+	case constant.ProtocolSocks:
+		outbound["type"] = "socks"
+		if len(settings.Accounts) > 0 {
+			outbound["username"] = settings.Accounts[0].User
+			outbound["password"] = settings.Accounts[0].Pass
+		}
+	default:
+		return nil, nil
+	}
+
+	if streamSettings.Security == "tls" {
+		tlsConfig := map[string]interface{}{
+			"enabled": true,
+		}
+		if streamSettings.TlsSettings.ServerName != "" {
+			tlsConfig["server_name"] = streamSettings.TlsSettings.ServerName
+		}
+		if streamSettings.TlsSettings.AllowInsecure {
+			tlsConfig["insecure"] = true
+		}
+		if streamSettings.TlsSettings.Fingerprint != "" {
+			tlsConfig["utls"] = map[string]interface{}{
+				"enabled":     true,
+				"fingerprint": streamSettings.TlsSettings.Fingerprint,
+			}
+		}
+		outbound["tls"] = tlsConfig
+	} else if streamSettings.Security == "reality" {
+		tlsConfig := map[string]interface{}{
+			"enabled": true,
+			"reality": map[string]interface{}{
+				"enabled":    true,
+				"public_key": *nodeXray.RealityPbk,
+			},
+		}
+		if len(streamSettings.RealitySettings.ServerNames) > 0 {
+			tlsConfig["server_name"] = streamSettings.RealitySettings.ServerNames[0]
+		}
+		if len(streamSettings.RealitySettings.ShortIds) > 0 {
+			tlsConfig["reality"].(map[string]interface{})["short_id"] = streamSettings.RealitySettings.ShortIds[0]
+		}
+		if streamSettings.RealitySettings.Fingerprint != "" {
+			tlsConfig["utls"] = map[string]interface{}{
+				"enabled":     true,
+				"fingerprint": streamSettings.RealitySettings.Fingerprint,
+			}
+		}
+		outbound["tls"] = tlsConfig
+	}
+	if streamSettings.Network == "ws" {
+		outbound["transport"] = map[string]interface{}{
+			"type":    "ws",
+			"path":    streamSettings.WsSettings.Path,
+			"headers": map[string]interface{}{"Host": streamSettings.WsSettings.Headers.Host},
+		}
+	}
+	return outbound, nil
+}

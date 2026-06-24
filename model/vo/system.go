@@ -19,6 +19,7 @@ type SystemVo struct {
 
 	SystemName   string `json:"systemName" redis:"systemName"`
 	ClashRule    string `json:"clashRule" redis:"clashRule"`
+	SingBoxRule  string `json:"singBoxRule" redis:"singBoxRule"`
 	XrayTemplate string `json:"xrayTemplate" redis:"xrayTemplate"`
 }
 
