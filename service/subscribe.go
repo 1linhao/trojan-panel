@@ -306,16 +306,22 @@ func SubscribeSingBox(pass string) (*model.Account, string, []byte, error) {
 		outbounds = append(outbounds, outbound)
 		proxyTags = append(proxyTags, *item.Name)
 	}
-	if len(proxyTags) > 0 {
-		outbounds = append(outbounds, map[string]interface{}{
-			"type":      "selector",
-			"tag":       "PROXY",
-			"outbounds": proxyTags,
-			"default":   proxyTags[0],
-		})
-	}
 	outbounds = append(outbounds, map[string]interface{}{"type": "direct", "tag": "DIRECT"})
 	outbounds = append(outbounds, map[string]interface{}{"type": "block", "tag": "REJECT"})
+	selectorOutbounds := append([]string{}, proxyTags...)
+	selectorDefault := "DIRECT"
+	if len(selectorOutbounds) > 0 {
+		selectorDefault = selectorOutbounds[0]
+		selectorOutbounds = append(selectorOutbounds, "DIRECT")
+	} else {
+		selectorOutbounds = append(selectorOutbounds, "DIRECT")
+	}
+	outbounds = append(outbounds, map[string]interface{}{
+		"type":      "selector",
+		"tag":       "PROXY",
+		"outbounds": selectorOutbounds,
+		"default":   selectorDefault,
+	})
 
 	systemName := constant.SystemName
 	systemConfig, err := SelectSystemByName(&systemName)
