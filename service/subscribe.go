@@ -521,34 +521,18 @@ func normalizeSingBoxRoute(routeConfig map[string]interface{}) {
 	if !ok {
 		return
 	}
-	missingRules := make([]map[string]interface{}, 0, 3)
-	for _, rule := range []map[string]interface{}{
+	missingRules := missingClashModeRules(rules, []map[string]interface{}{
 		{
 			"clash_mode": "direct",
 			"action":     "route",
 			"outbound":   "DIRECT",
 		},
 		{
-			"network": "udp",
-			"port":    443,
-			"action":  "reject",
-		},
-		{
 			"clash_mode": "global",
 			"action":     "route",
 			"outbound":   "PROXY",
 		},
-	} {
-		if rule["network"] == "udp" {
-			if !hasUDP443RejectRule(rules) {
-				missingRules = append(missingRules, rule)
-			}
-			continue
-		}
-		if !hasClashModeRule(rules, rule["clash_mode"]) {
-			missingRules = append(missingRules, rule)
-		}
-	}
+	})
 	if len(missingRules) > 0 {
 		routeConfig["rules"] = insertSingBoxRouteModeRules(rules, missingRules)
 	}
@@ -567,11 +551,6 @@ func defaultSingBoxRouteRules() []map[string]interface{} {
 			"clash_mode": "direct",
 			"action":     "route",
 			"outbound":   "DIRECT",
-		},
-		{
-			"network": "udp",
-			"port":    443,
-			"action":  "reject",
 		},
 		{
 			"clash_mode": "global",
@@ -624,30 +603,6 @@ func hasClashModeRule(rules []interface{}, clashMode interface{}) bool {
 		rule, ok := item.(map[string]interface{})
 		if ok && rule["clash_mode"] == clashMode {
 			return true
-		}
-	}
-	return false
-}
-
-func hasUDP443RejectRule(rules []interface{}) bool {
-	for _, item := range rules {
-		rule, ok := item.(map[string]interface{})
-		if !ok || rule["action"] != "reject" || rule["network"] != "udp" {
-			continue
-		}
-		switch port := rule["port"].(type) {
-		case int:
-			if port == 443 {
-				return true
-			}
-		case float64:
-			if port == 443 {
-				return true
-			}
-		case json.Number:
-			if value, err := port.Int64(); err == nil && value == 443 {
-				return true
-			}
 		}
 	}
 	return false

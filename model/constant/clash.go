@@ -183,11 +183,6 @@ const SingBoxRoute = `{
         "outbound": "DIRECT"
       },
       {
-        "network": "udp",
-        "port": 443,
-        "action": "reject"
-      },
-      {
         "clash_mode": "global",
         "action": "route",
         "outbound": "PROXY"
