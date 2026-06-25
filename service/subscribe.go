@@ -369,6 +369,7 @@ func buildSingBoxConfig(template string, outbounds []map[string]interface{}) (ma
 	if _, ok := singBoxConfig["http_clients"]; !ok {
 		singBoxConfig["http_clients"] = defaultSingBoxHTTPClients()
 	}
+	normalizeSingBoxHTTPClients(singBoxConfig)
 	dnsConfig, ok := singBoxConfig["dns"].(map[string]interface{})
 	if !ok {
 		dnsConfig = defaultSingBoxDNS()
@@ -396,6 +397,43 @@ func defaultSingBoxHTTPClients() []map[string]interface{} {
 		{
 			"tag": "rule-set-downloader",
 		},
+	}
+}
+
+func normalizeSingBoxHTTPClients(singBoxConfig map[string]interface{}) {
+	httpClientValue, ok := singBoxConfig["http_clients"]
+	if !ok {
+		singBoxConfig["http_clients"] = defaultSingBoxHTTPClients()
+		return
+	}
+
+	switch httpClients := httpClientValue.(type) {
+	case []interface{}:
+		hasRuleSetDownloader := false
+		for _, item := range httpClients {
+			if httpClient, ok := item.(map[string]interface{}); ok {
+				if httpClient["tag"] == "rule-set-downloader" {
+					hasRuleSetDownloader = true
+					delete(httpClient, "detour")
+				}
+			}
+		}
+		if !hasRuleSetDownloader {
+			singBoxConfig["http_clients"] = append(httpClients, map[string]interface{}{"tag": "rule-set-downloader"})
+		}
+	case []map[string]interface{}:
+		hasRuleSetDownloader := false
+		for _, httpClient := range httpClients {
+			if httpClient["tag"] == "rule-set-downloader" {
+				hasRuleSetDownloader = true
+				delete(httpClient, "detour")
+			}
+		}
+		if !hasRuleSetDownloader {
+			singBoxConfig["http_clients"] = append(httpClients, map[string]interface{}{"tag": "rule-set-downloader"})
+		}
+	default:
+		singBoxConfig["http_clients"] = defaultSingBoxHTTPClients()
 	}
 }
 
