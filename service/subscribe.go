@@ -366,9 +366,7 @@ func buildSingBoxConfig(template string, outbounds []map[string]interface{}) (ma
 	if _, ok := singBoxConfig["log"]; !ok {
 		singBoxConfig["log"] = map[string]interface{}{"level": "info"}
 	}
-	if _, ok := singBoxConfig["http_clients"]; !ok {
-		singBoxConfig["http_clients"] = defaultSingBoxHTTPClients()
-	}
+	delete(singBoxConfig, "http_clients")
 	dnsConfig, ok := singBoxConfig["dns"].(map[string]interface{})
 	if !ok {
 		dnsConfig = defaultSingBoxDNS()
@@ -389,15 +387,6 @@ func buildSingBoxConfig(template string, outbounds []map[string]interface{}) (ma
 	normalizeSingBoxRuleSet(routeConfig)
 	singBoxConfig["outbounds"] = outbounds
 	return singBoxConfig, nil
-}
-
-func defaultSingBoxHTTPClients() []map[string]interface{} {
-	return []map[string]interface{}{
-		{
-			"tag":    "rule-set-downloader",
-			"detour": "PROXY",
-		},
-	}
 }
 
 func defaultSingBoxDNS() map[string]interface{} {
@@ -504,9 +493,7 @@ func normalizeSingBoxRoute(routeConfig map[string]interface{}) {
 	if _, ok := routeConfig["auto_detect_interface"]; !ok {
 		routeConfig["auto_detect_interface"] = true
 	}
-	if _, ok := routeConfig["default_http_client"]; !ok {
-		routeConfig["default_http_client"] = "rule-set-downloader"
-	}
+	delete(routeConfig, "default_http_client")
 	if _, ok := routeConfig["default_domain_resolver"]; !ok {
 		routeConfig["default_domain_resolver"] = "local"
 	}
@@ -690,31 +677,31 @@ func normalizeSingBoxRuleSet(routeConfig map[string]interface{}) {
 }
 
 func normalizeSingBoxRuleSetItem(ruleSet map[string]interface{}) {
-	if _, ok := ruleSet["http_client"]; ok {
-		delete(ruleSet, "download_detour")
+	delete(ruleSet, "http_client")
+	ruleSetType, _ := ruleSet["type"].(string)
+	if ruleSetType != "remote" && ruleSet["url"] == nil {
 		return
 	}
-	if _, ok := ruleSet["download_detour"]; ok {
-		ruleSet["http_client"] = "rule-set-downloader"
-		delete(ruleSet, "download_detour")
+	if ruleSet["download_detour"] == nil || ruleSet["download_detour"] == "rule-set-downloader" {
+		ruleSet["download_detour"] = "PROXY"
 	}
 }
 
 func defaultSingBoxRuleSet() []map[string]interface{} {
 	return []map[string]interface{}{
 		{
-			"type":        "remote",
-			"tag":         "geoip-cn",
-			"format":      "binary",
-			"url":         "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs",
-			"http_client": "rule-set-downloader",
+			"type":            "remote",
+			"tag":             "geoip-cn",
+			"format":          "binary",
+			"url":             "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs",
+			"download_detour": "PROXY",
 		},
 		{
-			"type":        "remote",
-			"tag":         "geosite-cn",
-			"format":      "binary",
-			"url":         "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs",
-			"http_client": "rule-set-downloader",
+			"type":            "remote",
+			"tag":             "geosite-cn",
+			"format":          "binary",
+			"url":             "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs",
+			"download_detour": "PROXY",
 		},
 	}
 }
