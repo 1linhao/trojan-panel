@@ -369,9 +369,12 @@ func buildSingBoxConfig(template string, outbounds []map[string]interface{}) (ma
 	if _, ok := singBoxConfig["http_clients"]; !ok {
 		singBoxConfig["http_clients"] = defaultSingBoxHTTPClients()
 	}
-	if _, ok := singBoxConfig["dns"]; !ok {
-		singBoxConfig["dns"] = defaultSingBoxDNS()
+	dnsConfig, ok := singBoxConfig["dns"].(map[string]interface{})
+	if !ok {
+		dnsConfig = defaultSingBoxDNS()
+		singBoxConfig["dns"] = dnsConfig
 	}
+	normalizeSingBoxDNS(dnsConfig)
 	if _, ok := singBoxConfig["inbounds"]; !ok {
 		singBoxConfig["inbounds"] = defaultSingBoxTunInbounds()
 	}
@@ -427,6 +430,36 @@ func defaultSingBoxDNS() map[string]interface{} {
 	}
 }
 
+func normalizeSingBoxDNS(dnsConfig map[string]interface{}) {
+	if _, ok := dnsConfig["rules"]; !ok {
+		dnsConfig["rules"] = defaultSingBoxDNSRules()
+		return
+	}
+	rules, ok := singBoxRulesToInterfaces(dnsConfig["rules"])
+	if !ok {
+		return
+	}
+	missingRules := missingClashModeRules(rules, defaultSingBoxDNSRules())
+	if len(missingRules) > 0 {
+		dnsConfig["rules"] = appendSingBoxRules(missingRules, rules...)
+	}
+}
+
+func defaultSingBoxDNSRules() []map[string]interface{} {
+	return []map[string]interface{}{
+		{
+			"clash_mode": "direct",
+			"action":     "route",
+			"server":     "local",
+		},
+		{
+			"clash_mode": "global",
+			"action":     "route",
+			"server":     "remote",
+		},
+	}
+}
+
 func isLegacySingBoxRouteTemplate(config map[string]interface{}) bool {
 	if _, ok := config["route"]; ok {
 		return false
@@ -478,6 +511,26 @@ func normalizeSingBoxRoute(routeConfig map[string]interface{}) {
 	}
 	if _, ok := routeConfig["rules"]; !ok {
 		routeConfig["rules"] = defaultSingBoxRouteRules()
+		return
+	}
+	rules, ok := singBoxRulesToInterfaces(routeConfig["rules"])
+	if !ok {
+		return
+	}
+	missingRules := missingClashModeRules(rules, []map[string]interface{}{
+		{
+			"clash_mode": "direct",
+			"action":     "route",
+			"outbound":   "DIRECT",
+		},
+		{
+			"clash_mode": "global",
+			"action":     "route",
+			"outbound":   "PROXY",
+		},
+	})
+	if len(missingRules) > 0 {
+		routeConfig["rules"] = insertSingBoxRouteModeRules(rules, missingRules)
 	}
 }
 
@@ -514,6 +567,75 @@ func defaultSingBoxRouteRules() []map[string]interface{} {
 			"outbound": "DIRECT",
 		},
 	}
+}
+
+func singBoxRulesToInterfaces(value interface{}) ([]interface{}, bool) {
+	switch rules := value.(type) {
+	case []interface{}:
+		return rules, true
+	case []map[string]interface{}:
+		result := make([]interface{}, 0, len(rules))
+		for _, rule := range rules {
+			result = append(result, rule)
+		}
+		return result, true
+	default:
+		return nil, false
+	}
+}
+
+func missingClashModeRules(rules []interface{}, candidates []map[string]interface{}) []map[string]interface{} {
+	missingRules := make([]map[string]interface{}, 0, len(candidates))
+	for _, candidate := range candidates {
+		if !hasClashModeRule(rules, candidate["clash_mode"]) {
+			missingRules = append(missingRules, candidate)
+		}
+	}
+	return missingRules
+}
+
+func hasClashModeRule(rules []interface{}, clashMode interface{}) bool {
+	for _, item := range rules {
+		rule, ok := item.(map[string]interface{})
+		if ok && rule["clash_mode"] == clashMode {
+			return true
+		}
+	}
+	return false
+}
+
+func appendSingBoxRules(newRules []map[string]interface{}, existingRules ...interface{}) []interface{} {
+	result := make([]interface{}, 0, len(newRules)+len(existingRules))
+	for _, rule := range newRules {
+		result = append(result, rule)
+	}
+	result = append(result, existingRules...)
+	return result
+}
+
+func insertSingBoxRouteModeRules(rules []interface{}, modeRules []map[string]interface{}) []interface{} {
+	insertAt := 0
+	for index, item := range rules {
+		rule, ok := item.(map[string]interface{})
+		if !ok {
+			break
+		}
+		action, _ := rule["action"].(string)
+		protocol, _ := rule["protocol"].(string)
+		if action == "sniff" || (action == "hijack-dns" && protocol == "dns") {
+			insertAt = index + 1
+			continue
+		}
+		break
+	}
+
+	result := make([]interface{}, 0, len(rules)+len(modeRules))
+	result = append(result, rules[:insertAt]...)
+	for _, rule := range modeRules {
+		result = append(result, rule)
+	}
+	result = append(result, rules[insertAt:]...)
+	return result
 }
 
 func normalizeSingBoxExperimental(singBoxConfig map[string]interface{}) {
