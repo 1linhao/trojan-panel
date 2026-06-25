@@ -8,6 +8,7 @@ import (
 	"trojan-panel/model/constant"
 	"trojan-panel/model/vo"
 	"trojan-panel/service"
+	"trojan-panel/util"
 )
 
 // ClashSubscribe 获取Clash订阅地址
@@ -27,6 +28,10 @@ func ClashSubscribeForSb(c *gin.Context) {
 		accountId *uint
 		username  *string
 	)
+	accountVo := service.GetCurrentAccount(c)
+	if accountVo == nil {
+		return
+	}
 	if idStr := c.Query("id"); idStr != "" {
 		id, err := strconv.ParseUint(idStr, 10, 32)
 		if err != nil || id == 0 {
@@ -34,9 +39,15 @@ func ClashSubscribeForSb(c *gin.Context) {
 			return
 		}
 		idUint := uint(id)
+		if idUint != accountVo.Id && !util.IsAdmin(accountVo.Roles) {
+			vo.Fail(constant.ForbiddenError, c)
+			return
+		}
 		accountId = &idUint
+		if idUint == accountVo.Id {
+			username = &accountVo.Username
+		}
 	} else {
-		accountVo := service.GetCurrentAccount(c)
 		accountId = &accountVo.Id
 		username = &accountVo.Username
 	}
