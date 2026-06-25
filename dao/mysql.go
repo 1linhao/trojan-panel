@@ -46,6 +46,26 @@ func InitMySQL() {
 			panic(err)
 		}
 	}
+	if err = migrateNodeUotColumns(); err != nil {
+		logrus.Errorf("database migration err: %v", err)
+		panic(err)
+	}
+}
+
+func migrateNodeUotColumns() error {
+	migrations := []string{
+		"ALTER TABLE `node` ADD COLUMN `naive_uot_enable` tinyint(1) unsigned NOT NULL DEFAULT '0' COMMENT 'NaiveProxy是否启用UoT 0/否 1/是' AFTER `priority`",
+		"ALTER TABLE `node` ADD COLUMN `naive_uot_version` tinyint(1) unsigned NOT NULL DEFAULT '2' COMMENT 'NaiveProxy UoT版本 1/2' AFTER `naive_uot_enable`",
+	}
+	for _, migration := range migrations {
+		if _, err := db.Exec(migration); err != nil {
+			if strings.Contains(err.Error(), "Duplicate column name") {
+				continue
+			}
+			return err
+		}
+	}
+	return nil
 }
 
 func CloseDb() {

@@ -362,10 +362,12 @@ func buildSingBoxConfig(template string, outbounds []map[string]interface{}) (ma
 			"route": singBoxConfig,
 		}
 	}
-
 	delete(singBoxConfig, "outbounds")
 	if _, ok := singBoxConfig["log"]; !ok {
 		singBoxConfig["log"] = map[string]interface{}{"level": "info"}
+	}
+	if _, ok := singBoxConfig["http_clients"]; !ok {
+		singBoxConfig["http_clients"] = defaultSingBoxHTTPClients()
 	}
 	if _, ok := singBoxConfig["dns"]; !ok {
 		singBoxConfig["dns"] = defaultSingBoxDNS()
@@ -373,6 +375,7 @@ func buildSingBoxConfig(template string, outbounds []map[string]interface{}) (ma
 	if _, ok := singBoxConfig["inbounds"]; !ok {
 		singBoxConfig["inbounds"] = defaultSingBoxTunInbounds()
 	}
+	normalizeSingBoxExperimental(singBoxConfig)
 
 	routeConfig, ok := singBoxConfig["route"].(map[string]interface{})
 	if !ok {
@@ -380,8 +383,18 @@ func buildSingBoxConfig(template string, outbounds []map[string]interface{}) (ma
 		singBoxConfig["route"] = routeConfig
 	}
 	normalizeSingBoxRoute(routeConfig)
+	normalizeSingBoxRuleSet(routeConfig)
 	singBoxConfig["outbounds"] = outbounds
 	return singBoxConfig, nil
+}
+
+func defaultSingBoxHTTPClients() []map[string]interface{} {
+	return []map[string]interface{}{
+		{
+			"tag":    "rule-set-downloader",
+			"detour": "PROXY",
+		},
+	}
 }
 
 func defaultSingBoxDNS() map[string]interface{} {
@@ -396,6 +409,18 @@ func defaultSingBoxDNS() map[string]interface{} {
 				"tag":    "remote",
 				"server": "1.1.1.1",
 				"detour": "PROXY",
+			},
+		},
+		"rules": []map[string]interface{}{
+			{
+				"clash_mode": "direct",
+				"action":     "route",
+				"server":     "local",
+			},
+			{
+				"clash_mode": "global",
+				"action":     "route",
+				"server":     "remote",
 			},
 		},
 		"final": "remote",
@@ -442,6 +467,9 @@ func normalizeSingBoxRoute(routeConfig map[string]interface{}) {
 	if _, ok := routeConfig["auto_detect_interface"]; !ok {
 		routeConfig["auto_detect_interface"] = true
 	}
+	if _, ok := routeConfig["default_http_client"]; !ok {
+		routeConfig["default_http_client"] = "rule-set-downloader"
+	}
 	if _, ok := routeConfig["default_domain_resolver"]; !ok {
 		routeConfig["default_domain_resolver"] = "local"
 	}
@@ -449,11 +477,119 @@ func normalizeSingBoxRoute(routeConfig map[string]interface{}) {
 		routeConfig["final"] = "PROXY"
 	}
 	if _, ok := routeConfig["rules"]; !ok {
-		routeConfig["rules"] = []map[string]interface{}{
-			{
-				"action": "sniff",
+		routeConfig["rules"] = defaultSingBoxRouteRules()
+	}
+}
+
+func defaultSingBoxRouteRules() []map[string]interface{} {
+	return []map[string]interface{}{
+		{
+			"action": "sniff",
+		},
+		{
+			"protocol": "dns",
+			"action":   "hijack-dns",
+		},
+		{
+			"clash_mode": "direct",
+			"action":     "route",
+			"outbound":   "DIRECT",
+		},
+		{
+			"clash_mode": "global",
+			"action":     "route",
+			"outbound":   "PROXY",
+		},
+		{
+			"ip_is_private": true,
+			"action":        "route",
+			"outbound":      "DIRECT",
+		},
+		{
+			"rule_set": []string{
+				"geoip-cn",
+				"geosite-cn",
 			},
+			"action":   "route",
+			"outbound": "DIRECT",
+		},
+	}
+}
+
+func normalizeSingBoxExperimental(singBoxConfig map[string]interface{}) {
+	experimental, ok := singBoxConfig["experimental"].(map[string]interface{})
+	if !ok {
+		singBoxConfig["experimental"] = defaultSingBoxExperimental()
+		return
+	}
+	clashAPI, ok := experimental["clash_api"].(map[string]interface{})
+	if !ok {
+		experimental["clash_api"] = map[string]interface{}{
+			"default_mode": "rule",
 		}
+		return
+	}
+	if _, ok := clashAPI["default_mode"]; !ok {
+		clashAPI["default_mode"] = "rule"
+	}
+}
+
+func defaultSingBoxExperimental() map[string]interface{} {
+	return map[string]interface{}{
+		"clash_api": map[string]interface{}{
+			"default_mode": "rule",
+		},
+	}
+}
+
+func normalizeSingBoxRuleSet(routeConfig map[string]interface{}) {
+	ruleSetValue, ok := routeConfig["rule_set"]
+	if !ok {
+		routeConfig["rule_set"] = defaultSingBoxRuleSet()
+		return
+	}
+
+	switch ruleSetItems := ruleSetValue.(type) {
+	case []interface{}:
+		for _, item := range ruleSetItems {
+			if ruleSet, ok := item.(map[string]interface{}); ok {
+				normalizeSingBoxRuleSetItem(ruleSet)
+			}
+		}
+	case []map[string]interface{}:
+		for _, ruleSet := range ruleSetItems {
+			normalizeSingBoxRuleSetItem(ruleSet)
+		}
+	}
+}
+
+func normalizeSingBoxRuleSetItem(ruleSet map[string]interface{}) {
+	if _, ok := ruleSet["http_client"]; ok {
+		delete(ruleSet, "download_detour")
+		return
+	}
+	if _, ok := ruleSet["download_detour"]; ok {
+		ruleSet["http_client"] = "rule-set-downloader"
+		delete(ruleSet, "download_detour")
+	}
+}
+
+func defaultSingBoxRuleSet() []map[string]interface{} {
+	return []map[string]interface{}{
+		{
+			"type":        "remote",
+			"tag":         "geoip-cn",
+			"format":      "binary",
+			"url":         "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs",
+			"http_client": "rule-set-downloader",
+		},
+		{
+			"type":        "remote",
+			"tag":         "geosite-cn",
+			"format":      "binary",
+			"url":         "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs",
+			"http_client": "rule-set-downloader",
+		},
 	}
 }
 
@@ -509,7 +645,7 @@ func buildSingBoxOutbound(item model.Node, pass string, username string) (map[st
 		}
 		return outbound, nil
 	case constant.NaiveProxy:
-		return map[string]interface{}{
+		outbound := map[string]interface{}{
 			"type":        "naive",
 			"tag":         *item.Name,
 			"server":      *item.Domain,
@@ -520,7 +656,18 @@ func buildSingBoxOutbound(item model.Node, pass string, username string) (map[st
 				"enabled":     true,
 				"server_name": *item.Domain,
 			},
-		}, nil
+		}
+		if item.NaiveUotEnable != nil && *item.NaiveUotEnable == 1 {
+			version := uint(2)
+			if item.NaiveUotVersion != nil && (*item.NaiveUotVersion == 1 || *item.NaiveUotVersion == 2) {
+				version = *item.NaiveUotVersion
+			}
+			outbound["udp_over_tcp"] = map[string]interface{}{
+				"enabled": true,
+				"version": version,
+			}
+		}
+		return outbound, nil
 	case constant.Hysteria2:
 		nodeHysteria2, err := dao.SelectNodeHysteria2ById(item.NodeSubId)
 		if err != nil {

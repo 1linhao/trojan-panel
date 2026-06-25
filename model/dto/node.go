@@ -50,6 +50,9 @@ type NodeCreateDto struct {
 	Hysteria2DownMbps     *int    `json:"hysteria2DownMbps" form:"hysteria2DownMbps" validate:"required,gt=0,lte=9999999999"`
 	Hysteria2ServerName   *string `json:"hysteria2ServerName" form:"hysteria2ServerName" validate:"omitempty,min=0,max=64"`
 	Hysteria2Insecure     *uint   `json:"hysteria2Insecure" form:"hysteria2Insecure" validate:"omitempty,oneof=0 1"`
+
+	NaiveUotEnable  *uint `json:"naiveUotEnable" form:"naiveUotEnable" validate:"omitempty,oneof=0 1"`
+	NaiveUotVersion *uint `json:"naiveUotVersion" form:"naiveUotVersion" validate:"omitempty,oneof=1 2"`
 }
 
 type NodeUpdateDto struct {
@@ -94,4 +97,7 @@ type NodeUpdateDto struct {
 	Hysteria2DownMbps     *int    `json:"hysteria2DownMbps" form:"hysteria2DownMbps" validate:"required,gt=0,lte=9999999999"`
 	Hysteria2ServerName   *string `json:"hysteria2ServerName" form:"hysteria2ServerName" validate:"omitempty,min=0,max=64"`
 	Hysteria2Insecure     *uint   `json:"hysteria2Insecure" form:"hysteria2Insecure" validate:"omitempty,oneof=0 1"`
+
+	NaiveUotEnable  *uint `json:"naiveUotEnable" form:"naiveUotEnable" validate:"omitempty,oneof=0 1"`
+	NaiveUotVersion *uint `json:"naiveUotVersion" form:"naiveUotVersion" validate:"omitempty,oneof=1 2"`
 }

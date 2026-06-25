@@ -29,15 +29,17 @@ func SelectNodeById(id *uint) (*vo.NodeOneVo, error) {
 	}
 	if node != nil {
 		nodeOneVo := vo.NodeOneVo{
-			Id:           *node.Id,
-			NodeServerId: *node.NodeServerId,
-			NodeSubId:    *node.NodeSubId,
-			NodeTypeId:   *node.NodeTypeId,
-			Name:         *node.Name,
-			Domain:       *node.Domain,
-			Port:         *node.Port,
-			Priority:     *node.Priority,
-			CreateTime:   *node.CreateTime,
+			Id:              *node.Id,
+			NodeServerId:    *node.NodeServerId,
+			NodeSubId:       *node.NodeSubId,
+			NodeTypeId:      *node.NodeTypeId,
+			Name:            *node.Name,
+			Domain:          *node.Domain,
+			Port:            *node.Port,
+			Priority:        *node.Priority,
+			NaiveUotEnable:  nodeUintValue(node.NaiveUotEnable, 0),
+			NaiveUotVersion: nodeUintValue(node.NaiveUotVersion, 2),
+			CreateTime:      *node.CreateTime,
 		}
 		nodeTypeId := node.NodeTypeId
 		switch *nodeTypeId {
@@ -266,6 +268,8 @@ func CreateNode(token string, nodeCreateDto dto.NodeCreateDto) error {
 		Domain:             nodeCreateDto.Domain,
 		Port:               nodeCreateDto.Port,
 		Priority:           nodeCreateDto.Priority,
+		NaiveUotEnable:     nodeCreateDto.NaiveUotEnable,
+		NaiveUotVersion:    nodeCreateDto.NaiveUotVersion,
 	}
 	if err = dao.CreateNode(&node); err != nil {
 		return err
@@ -292,6 +296,8 @@ func SelectNodePage(queryName *string, nodeServerId *uint, pageNum *uint, pageSi
 			Domain:             *item.Domain,
 			Port:               *item.Port,
 			Priority:           *item.Priority,
+			NaiveUotEnable:     nodeUintValue(item.NaiveUotEnable, 0),
+			NaiveUotVersion:    nodeUintValue(item.NaiveUotVersion, 2),
 			CreateTime:         *item.CreateTime,
 		}
 		nodeBos = append(nodeBos, nodeBo)
@@ -333,16 +339,18 @@ func SelectNodePage(queryName *string, nodeServerId *uint, pageNum *uint, pageSi
 	nodeVos := make([]vo.NodeVo, 0)
 	for _, item := range nodeBos {
 		nodeVo := vo.NodeVo{
-			Id:           item.Id,
-			NodeServerId: item.NodeServerId,
-			NodeSubId:    item.NodeSubId,
-			NodeTypeId:   item.NodeTypeId,
-			Name:         item.Name,
-			Domain:       item.Domain,
-			Port:         item.Port,
-			Priority:     item.Priority,
-			CreateTime:   item.CreateTime,
-			Status:       item.Status,
+			Id:              item.Id,
+			NodeServerId:    item.NodeServerId,
+			NodeSubId:       item.NodeSubId,
+			NodeTypeId:      item.NodeTypeId,
+			Name:            item.Name,
+			Domain:          item.Domain,
+			Port:            item.Port,
+			Priority:        item.Priority,
+			NaiveUotEnable:  item.NaiveUotEnable,
+			NaiveUotVersion: item.NaiveUotVersion,
+			CreateTime:      item.CreateTime,
+			Status:          item.Status,
 		}
 		nodeVos = append(nodeVos, nodeVo)
 	}
@@ -528,15 +536,19 @@ func UpdateNodeById(token string, nodeUpdateDto *dto.NodeUpdateDto) error {
 			*nodeEntity.NodeServerIp != *nodeServer.Ip ||
 			*nodeEntity.Domain != *nodeUpdateDto.Domain ||
 			*nodeEntity.Port != *nodeUpdateDto.Port ||
-			*nodeEntity.Priority != *nodeUpdateDto.Priority {
+			*nodeEntity.Priority != *nodeUpdateDto.Priority ||
+			nodeUintValue(nodeEntity.NaiveUotEnable, 0) != nodeUintValue(nodeUpdateDto.NaiveUotEnable, 0) ||
+			nodeUintValue(nodeEntity.NaiveUotVersion, 2) != nodeUintValue(nodeUpdateDto.NaiveUotVersion, 2) {
 			node := model.Node{
-				Id:           nodeUpdateDto.Id,
-				NodeServerId: nodeUpdateDto.NodeServerId,
-				Name:         nodeUpdateDto.Name,
-				NodeServerIp: nodeServer.Ip,
-				Domain:       nodeUpdateDto.Domain,
-				Port:         nodeUpdateDto.Port,
-				Priority:     nodeUpdateDto.Priority,
+				Id:              nodeUpdateDto.Id,
+				NodeServerId:    nodeUpdateDto.NodeServerId,
+				Name:            nodeUpdateDto.Name,
+				NodeServerIp:    nodeServer.Ip,
+				Domain:          nodeUpdateDto.Domain,
+				Port:            nodeUpdateDto.Port,
+				Priority:        nodeUpdateDto.Priority,
+				NaiveUotEnable:  nodeUpdateDto.NaiveUotEnable,
+				NaiveUotVersion: nodeUpdateDto.NaiveUotVersion,
 			}
 			if err = dao.UpdateNodeById(&node); err != nil {
 				return err
@@ -633,6 +645,8 @@ func UpdateNodeById(token string, nodeUpdateDto *dto.NodeUpdateDto) error {
 			Domain:             nodeUpdateDto.Domain,
 			Port:               nodeUpdateDto.Port,
 			Priority:           nodeUpdateDto.Priority,
+			NaiveUotEnable:     nodeUpdateDto.NaiveUotEnable,
+			NaiveUotVersion:    nodeUpdateDto.NaiveUotVersion,
 		}
 		if err = dao.UpdateNodeById(&node); err != nil {
 			return err
@@ -845,6 +859,13 @@ func NodeURL(accountId *uint, username *string, id *uint) (string, uint, error) 
 
 func CountNode() (int, error) {
 	return dao.CountNode()
+}
+
+func nodeUintValue(value *uint, fallback uint) uint {
+	if value == nil {
+		return fallback
+	}
+	return *value
 }
 
 func GrpcAddNode(token string, ip string, grpcPort uint, nodeAddDto *core.NodeAddDto) {

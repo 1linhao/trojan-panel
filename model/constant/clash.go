@@ -121,6 +121,12 @@ const SingBoxRoute = `{
   "log": {
     "level": "info"
   },
+  "http_clients": [
+    {
+      "tag": "rule-set-downloader",
+      "detour": "PROXY"
+    }
+  ],
   "dns": {
     "servers": [
       {
@@ -132,6 +138,18 @@ const SingBoxRoute = `{
         "tag": "remote",
         "server": "1.1.1.1",
         "detour": "PROXY"
+      }
+    ],
+    "rules": [
+      {
+        "clash_mode": "direct",
+        "action": "route",
+        "server": "local"
+      },
+      {
+        "clash_mode": "global",
+        "action": "route",
+        "server": "remote"
       }
     ],
     "final": "remote"
@@ -159,6 +177,16 @@ const SingBoxRoute = `{
         "action": "hijack-dns"
       },
       {
+        "clash_mode": "direct",
+        "action": "route",
+        "outbound": "DIRECT"
+      },
+      {
+        "clash_mode": "global",
+        "action": "route",
+        "outbound": "PROXY"
+      },
+      {
         "ip_is_private": true,
         "action": "route",
         "outbound": "DIRECT"
@@ -178,18 +206,24 @@ const SingBoxRoute = `{
         "tag": "geoip-cn",
         "format": "binary",
         "url": "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs",
-        "download_detour": "PROXY"
+        "http_client": "rule-set-downloader"
       },
       {
         "type": "remote",
         "tag": "geosite-cn",
         "format": "binary",
         "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs",
-        "download_detour": "PROXY"
+        "http_client": "rule-set-downloader"
       }
     ],
     "auto_detect_interface": true,
+    "default_http_client": "rule-set-downloader",
     "default_domain_resolver": "local",
     "final": "PROXY"
+  },
+  "experimental": {
+    "clash_api": {
+      "default_mode": "rule"
+    }
   }
 }`

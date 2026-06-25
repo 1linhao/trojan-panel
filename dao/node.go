@@ -13,7 +13,7 @@ import (
 func SelectNodeById(id *uint) (*model.Node, error) {
 	var node model.Node
 	where := map[string]interface{}{"id": *id}
-	selectFields := []string{"id", "node_server_id", "`node_sub_id`", "node_type_id", "name", "node_server_ip", "node_server_grpc_port", "domain", "port", "priority", "create_time"}
+	selectFields := []string{"id", "node_server_id", "`node_sub_id`", "node_type_id", "name", "node_server_ip", "node_server_grpc_port", "domain", "port", "priority", "naive_uot_enable", "naive_uot_version", "create_time"}
 	buildSelect, values, err := builder.BuildSelect("node", where, selectFields)
 	if err != nil {
 		logrus.Errorln(err.Error())
@@ -43,6 +43,12 @@ func CreateNode(node *model.Node) error {
 		"name":           *node.Name,
 		"node_server_ip": *node.NodeServerIp,
 		"domain":         *node.Domain,
+	}
+	if node.NaiveUotEnable != nil {
+		nodeEntity["naive_uot_enable"] = *node.NaiveUotEnable
+	}
+	if node.NaiveUotVersion != nil {
+		nodeEntity["naive_uot_version"] = *node.NaiveUotVersion
 	}
 	if node.Port != nil && *node.Port != 0 {
 		nodeEntity["port"] = *node.Port
@@ -103,7 +109,7 @@ func SelectNodePage(queryName *string, nodeServerId *uint, pageNum *uint, pageSi
 	if nodeServerId != nil && *nodeServerId != 0 {
 		where["node_server_id"] = *nodeServerId
 	}
-	selectFields := []string{"id", "node_server_id", "`node_sub_id`", "node_type_id", "name", "node_server_ip", "node_server_grpc_port", "domain", "port", "priority", "create_time"}
+	selectFields := []string{"id", "node_server_id", "`node_sub_id`", "node_type_id", "name", "node_server_ip", "node_server_grpc_port", "domain", "port", "priority", "naive_uot_enable", "naive_uot_version", "create_time"}
 	selectSQL, values, err := builder.BuildSelect("node", where, selectFields)
 	if err != nil {
 		logrus.Errorln(err.Error())
@@ -167,6 +173,12 @@ func UpdateNodeById(node *model.Node) error {
 	}
 	if node.Priority != nil {
 		update["priority"] = *node.Priority
+	}
+	if node.NaiveUotEnable != nil {
+		update["naive_uot_enable"] = *node.NaiveUotEnable
+	}
+	if node.NaiveUotVersion != nil {
+		update["naive_uot_version"] = *node.NaiveUotVersion
 	}
 	if len(update) > 0 {
 		buildUpdate, values, err := builder.BuildUpdate("node", where, update)
@@ -246,7 +258,7 @@ func SelectNodes() ([]model.Node, error) {
 	where := map[string]interface{}{
 		"_orderby": "priority desc,create_time desc"}
 	buildSelect, values, err := builder.BuildSelect("node", where, []string{
-		"id", "node_sub_id", "node_type_id", "name", "domain", "port"})
+		"id", "node_sub_id", "node_type_id", "name", "domain", "port", "naive_uot_enable", "naive_uot_version"})
 	if err != nil {
 		logrus.Errorln(err.Error())
 		return nodes, errors.New(constant.SysError)

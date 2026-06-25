@@ -13,6 +13,8 @@ type Node struct {
 	Domain             *string    `ddb:"domain"`
 	Port               *uint      `ddb:"port"`
 	Priority           *int       `ddb:"priority"`
+	NaiveUotEnable     *uint      `ddb:"naive_uot_enable"`
+	NaiveUotVersion    *uint      `ddb:"naive_uot_version"`
 	CreateTime         *time.Time `ddb:"create_time"`
 	UpdateTime         *time.Time `ddb:"update_time"`
 }
