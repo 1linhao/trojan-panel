@@ -22,7 +22,7 @@ const (
 	RbacModelFilePath string = "config/rbac_model.conf"
 	// ClashRuleFilePath Clash规则默认模板
 	ClashRuleFilePath string = "config/template/template-clash-rule.yaml"
-	// SingBoxRuleFilePath sing-box路由规则默认模板
+	// SingBoxRuleFilePath sing-box客户端默认模板
 	SingBoxRuleFilePath string = "config/template/template-sing-box-route.json"
 	// XrayTemplateFilePath Xray模板
 	XrayTemplateFilePath string = "config/template/template-xray.json"

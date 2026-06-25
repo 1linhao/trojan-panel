@@ -333,33 +333,10 @@ func SubscribeSingBox(pass string) (*model.Account, string, []byte, error) {
 	if err != nil {
 		return nil, "", []byte{}, errors.New(constant.SysError)
 	}
-	routeConfig := map[string]interface{}{}
-	if systemConfig.SingBoxRule != "" {
-		if err = json.Unmarshal([]byte(systemConfig.SingBoxRule), &routeConfig); err != nil {
-			logrus.Errorf("sing-box route config deserialization err: %v", err)
-			return nil, "", []byte{}, errors.New(constant.SysError)
-		}
-	}
-	if len(routeConfig) == 0 {
-		routeConfig["auto_detect_interface"] = true
-		routeConfig["final"] = "PROXY"
-	}
-	normalizeSingBoxRoute(routeConfig)
-
-	singBoxConfig := map[string]interface{}{
-		"log": map[string]interface{}{
-			"level": "info",
-		},
-		"inbounds": []map[string]interface{}{
-			{
-				"type":        "mixed",
-				"tag":         "mixed-in",
-				"listen":      "127.0.0.1",
-				"listen_port": 2080,
-			},
-		},
-		"outbounds": outbounds,
-		"route":     routeConfig,
+	singBoxConfig, err := buildSingBoxConfig(systemConfig.SingBoxRule, outbounds)
+	if err != nil {
+		logrus.Errorf("sing-box template config deserialization err: %v", err)
+		return nil, "", []byte{}, errors.New(constant.SysError)
 	}
 	singBoxConfigJson, err := json.MarshalIndent(singBoxConfig, "", "  ")
 	if err != nil {
@@ -368,9 +345,105 @@ func SubscribeSingBox(pass string) (*model.Account, string, []byte, error) {
 	return account, userInfo, singBoxConfigJson, nil
 }
 
+func buildSingBoxConfig(template string, outbounds []map[string]interface{}) (map[string]interface{}, error) {
+	singBoxConfig := map[string]interface{}{}
+	if template != "" {
+		if err := json.Unmarshal([]byte(template), &singBoxConfig); err != nil {
+			return nil, err
+		}
+	}
+	if len(singBoxConfig) == 0 {
+		if err := json.Unmarshal([]byte(constant.SingBoxRoute), &singBoxConfig); err != nil {
+			return nil, err
+		}
+	}
+	if isLegacySingBoxRouteTemplate(singBoxConfig) {
+		singBoxConfig = map[string]interface{}{
+			"route": singBoxConfig,
+		}
+	}
+
+	delete(singBoxConfig, "outbounds")
+	if _, ok := singBoxConfig["log"]; !ok {
+		singBoxConfig["log"] = map[string]interface{}{"level": "info"}
+	}
+	if _, ok := singBoxConfig["dns"]; !ok {
+		singBoxConfig["dns"] = defaultSingBoxDNS()
+	}
+	if _, ok := singBoxConfig["inbounds"]; !ok {
+		singBoxConfig["inbounds"] = defaultSingBoxTunInbounds()
+	}
+
+	routeConfig, ok := singBoxConfig["route"].(map[string]interface{})
+	if !ok {
+		routeConfig = map[string]interface{}{}
+		singBoxConfig["route"] = routeConfig
+	}
+	normalizeSingBoxRoute(routeConfig)
+	singBoxConfig["outbounds"] = outbounds
+	return singBoxConfig, nil
+}
+
+func defaultSingBoxDNS() map[string]interface{} {
+	return map[string]interface{}{
+		"servers": []map[string]interface{}{
+			{
+				"type": "local",
+				"tag":  "local",
+			},
+			{
+				"type":   "tls",
+				"tag":    "remote",
+				"server": "1.1.1.1",
+				"detour": "PROXY",
+			},
+		},
+		"final": "remote",
+	}
+}
+
+func isLegacySingBoxRouteTemplate(config map[string]interface{}) bool {
+	if _, ok := config["route"]; ok {
+		return false
+	}
+	if _, ok := config["inbounds"]; ok {
+		return false
+	}
+	if _, ok := config["dns"]; ok {
+		return false
+	}
+	if _, ok := config["log"]; ok {
+		return false
+	}
+	_, hasFinal := config["final"]
+	_, hasRules := config["rules"]
+	_, hasAutoDetectInterface := config["auto_detect_interface"]
+	_, hasRuleSet := config["rule_set"]
+	return hasFinal || hasRules || hasAutoDetectInterface || hasRuleSet
+}
+
+func defaultSingBoxTunInbounds() []map[string]interface{} {
+	return []map[string]interface{}{
+		{
+			"type": "tun",
+			"tag":  "tun-in",
+			"address": []string{
+				"172.19.0.1/30",
+				"fdfe:dcba:9876::1/126",
+			},
+			"auto_route":   true,
+			"strict_route": true,
+			"stack":        "mixed",
+		},
+	}
+}
+
 func normalizeSingBoxRoute(routeConfig map[string]interface{}) {
 	if _, ok := routeConfig["auto_detect_interface"]; !ok {
 		routeConfig["auto_detect_interface"] = true
+	}
+	if _, ok := routeConfig["default_domain_resolver"]; !ok {
+		routeConfig["default_domain_resolver"] = "local"
 	}
 	if _, ok := routeConfig["final"]; !ok {
 		routeConfig["final"] = "PROXY"
