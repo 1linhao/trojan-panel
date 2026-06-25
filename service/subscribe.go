@@ -394,8 +394,7 @@ func buildSingBoxConfig(template string, outbounds []map[string]interface{}) (ma
 func defaultSingBoxHTTPClients() []map[string]interface{} {
 	return []map[string]interface{}{
 		{
-			"tag":    "rule-set-downloader",
-			"detour": "PROXY",
+			"tag": "rule-set-downloader",
 		},
 	}
 }

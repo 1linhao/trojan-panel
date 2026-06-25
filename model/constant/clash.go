@@ -123,8 +123,7 @@ const SingBoxRoute = `{
   },
   "http_clients": [
     {
-      "tag": "rule-set-downloader",
-      "detour": "PROXY"
+      "tag": "rule-set-downloader"
     }
   ],
   "dns": {
