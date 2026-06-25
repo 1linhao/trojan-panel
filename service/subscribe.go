@@ -41,6 +41,9 @@ func SubscribeClash(pass string) (*model.Account, string, []byte, vo.SystemVo, e
 	var ClashConfigInterface []interface{}
 	var proxies []string
 	for _, item := range nodes {
+		if *item.NodeTypeId == constant.NaiveProxy {
+			continue
+		}
 		if *item.NodeTypeId == constant.Xray {
 			nodeXray, err := dao.SelectNodeXrayById(item.NodeSubId)
 			if err != nil {
@@ -254,6 +257,9 @@ func SubscribeClash(pass string) (*model.Account, string, []byte, vo.SystemVo, e
 			proxies = append(proxies, *item.Name)
 		}
 	}
+	if len(proxies) == 0 {
+		proxies = append(proxies, "DIRECT")
+	}
 	proxyGroups := make([]bo.ProxyGroup, 0)
 	proxyGroup := bo.ProxyGroup{
 		Name:    "PROXY",
@@ -306,8 +312,6 @@ func SubscribeSingBox(pass string) (*model.Account, string, []byte, error) {
 		outbounds = append(outbounds, outbound)
 		proxyTags = append(proxyTags, *item.Name)
 	}
-	outbounds = append(outbounds, map[string]interface{}{"type": "direct", "tag": "DIRECT"})
-	outbounds = append(outbounds, map[string]interface{}{"type": "block", "tag": "REJECT"})
 	selectorOutbounds := append([]string{}, proxyTags...)
 	selectorDefault := "DIRECT"
 	if len(selectorOutbounds) > 0 {
@@ -322,6 +326,7 @@ func SubscribeSingBox(pass string) (*model.Account, string, []byte, error) {
 		"outbounds": selectorOutbounds,
 		"default":   selectorDefault,
 	})
+	outbounds = append(outbounds, map[string]interface{}{"type": "direct", "tag": "DIRECT"})
 
 	systemName := constant.SystemName
 	systemConfig, err := SelectSystemByName(&systemName)
@@ -339,6 +344,7 @@ func SubscribeSingBox(pass string) (*model.Account, string, []byte, error) {
 		routeConfig["auto_detect_interface"] = true
 		routeConfig["final"] = "PROXY"
 	}
+	normalizeSingBoxRoute(routeConfig)
 
 	singBoxConfig := map[string]interface{}{
 		"log": map[string]interface{}{
@@ -346,12 +352,10 @@ func SubscribeSingBox(pass string) (*model.Account, string, []byte, error) {
 		},
 		"inbounds": []map[string]interface{}{
 			{
-				"type":                       "mixed",
-				"tag":                        "mixed-in",
-				"listen":                     "127.0.0.1",
-				"listen_port":                2080,
-				"sniff":                      true,
-				"sniff_override_destination": true,
+				"type":        "mixed",
+				"tag":         "mixed-in",
+				"listen":      "127.0.0.1",
+				"listen_port": 2080,
 			},
 		},
 		"outbounds": outbounds,
@@ -362,6 +366,22 @@ func SubscribeSingBox(pass string) (*model.Account, string, []byte, error) {
 		return nil, "", []byte{}, errors.New(constant.SysError)
 	}
 	return account, userInfo, singBoxConfigJson, nil
+}
+
+func normalizeSingBoxRoute(routeConfig map[string]interface{}) {
+	if _, ok := routeConfig["auto_detect_interface"]; !ok {
+		routeConfig["auto_detect_interface"] = true
+	}
+	if _, ok := routeConfig["final"]; !ok {
+		routeConfig["final"] = "PROXY"
+	}
+	if _, ok := routeConfig["rules"]; !ok {
+		routeConfig["rules"] = []map[string]interface{}{
+			{
+				"action": "sniff",
+			},
+		}
+	}
 }
 
 func buildSingBoxOutbound(item model.Node, pass string, username string) (map[string]interface{}, error) {
@@ -417,14 +437,15 @@ func buildSingBoxOutbound(item model.Node, pass string, username string) (map[st
 		return outbound, nil
 	case constant.NaiveProxy:
 		return map[string]interface{}{
-			"type":        "http",
+			"type":        "naive",
 			"tag":         *item.Name,
 			"server":      *item.Domain,
 			"server_port": *item.Port,
 			"username":    username,
 			"password":    pass,
 			"tls": map[string]interface{}{
-				"enabled": true,
+				"enabled":     true,
+				"server_name": *item.Domain,
 			},
 		}, nil
 	case constant.Hysteria2:

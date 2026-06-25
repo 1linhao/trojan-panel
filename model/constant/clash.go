@@ -118,6 +118,11 @@ rule-providers:
     interval: 86400`
 
 const SingBoxRoute = `{
+  "rules": [
+    {
+      "action": "sniff"
+    }
+  ],
   "auto_detect_interface": true,
   "final": "PROXY"
 }`
