@@ -128,6 +128,7 @@ const SingBoxRoute = `{
     }
   ],
   "dns": {
+    "strategy": "ipv4_only",
     "servers": [
       {
         "type": "local",
@@ -180,6 +181,11 @@ const SingBoxRoute = `{
         "clash_mode": "direct",
         "action": "route",
         "outbound": "DIRECT"
+      },
+      {
+        "network": "udp",
+        "port": 443,
+        "action": "reject"
       },
       {
         "clash_mode": "global",

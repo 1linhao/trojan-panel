@@ -402,6 +402,7 @@ func defaultSingBoxHTTPClients() []map[string]interface{} {
 
 func defaultSingBoxDNS() map[string]interface{} {
 	return map[string]interface{}{
+		"strategy": "ipv4_only",
 		"servers": []map[string]interface{}{
 			{
 				"type": "local",
@@ -431,6 +432,9 @@ func defaultSingBoxDNS() map[string]interface{} {
 }
 
 func normalizeSingBoxDNS(dnsConfig map[string]interface{}) {
+	if _, ok := dnsConfig["strategy"]; !ok {
+		dnsConfig["strategy"] = "ipv4_only"
+	}
 	if _, ok := dnsConfig["rules"]; !ok {
 		dnsConfig["rules"] = defaultSingBoxDNSRules()
 		return
@@ -517,18 +521,34 @@ func normalizeSingBoxRoute(routeConfig map[string]interface{}) {
 	if !ok {
 		return
 	}
-	missingRules := missingClashModeRules(rules, []map[string]interface{}{
+	missingRules := make([]map[string]interface{}, 0, 3)
+	for _, rule := range []map[string]interface{}{
 		{
 			"clash_mode": "direct",
 			"action":     "route",
 			"outbound":   "DIRECT",
 		},
 		{
+			"network": "udp",
+			"port":    443,
+			"action":  "reject",
+		},
+		{
 			"clash_mode": "global",
 			"action":     "route",
 			"outbound":   "PROXY",
 		},
-	})
+	} {
+		if rule["network"] == "udp" {
+			if !hasUDP443RejectRule(rules) {
+				missingRules = append(missingRules, rule)
+			}
+			continue
+		}
+		if !hasClashModeRule(rules, rule["clash_mode"]) {
+			missingRules = append(missingRules, rule)
+		}
+	}
 	if len(missingRules) > 0 {
 		routeConfig["rules"] = insertSingBoxRouteModeRules(rules, missingRules)
 	}
@@ -547,6 +567,11 @@ func defaultSingBoxRouteRules() []map[string]interface{} {
 			"clash_mode": "direct",
 			"action":     "route",
 			"outbound":   "DIRECT",
+		},
+		{
+			"network": "udp",
+			"port":    443,
+			"action":  "reject",
 		},
 		{
 			"clash_mode": "global",
@@ -604,6 +629,30 @@ func hasClashModeRule(rules []interface{}, clashMode interface{}) bool {
 	return false
 }
 
+func hasUDP443RejectRule(rules []interface{}) bool {
+	for _, item := range rules {
+		rule, ok := item.(map[string]interface{})
+		if !ok || rule["action"] != "reject" || rule["network"] != "udp" {
+			continue
+		}
+		switch port := rule["port"].(type) {
+		case int:
+			if port == 443 {
+				return true
+			}
+		case float64:
+			if port == 443 {
+				return true
+			}
+		case json.Number:
+			if value, err := port.Int64(); err == nil && value == 443 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func appendSingBoxRules(newRules []map[string]interface{}, existingRules ...interface{}) []interface{} {
 	result := make([]interface{}, 0, len(newRules)+len(existingRules))
 	for _, rule := range newRules {
@@ -622,7 +671,7 @@ func insertSingBoxRouteModeRules(rules []interface{}, modeRules []map[string]int
 		}
 		action, _ := rule["action"].(string)
 		protocol, _ := rule["protocol"].(string)
-		if action == "sniff" || (action == "hijack-dns" && protocol == "dns") {
+		if action == "sniff" || (action == "hijack-dns" && protocol == "dns") || rule["clash_mode"] == "direct" {
 			insertAt = index + 1
 			continue
 		}
