@@ -836,11 +836,13 @@ func NodeURL(accountId *uint, username *string, id *uint) (string, uint, error) 
 		if err != nil {
 			return "", 0, errors.New(constant.NodeURLError)
 		}
-		headBuilder.WriteString(fmt.Sprintf("hysteria2://%s@%s:%d?insecure=%d",
+		headBuilder.WriteString(fmt.Sprintf("hysteria2://%s@%s:%d?insecure=%d&upmbps=%d&downmbps=%d",
 			password,
 			*node.Domain,
 			*node.Port,
-			*nodeHysteria2.Insecure))
+			*nodeHysteria2.Insecure,
+			*nodeHysteria2.UpMbps,
+			*nodeHysteria2.DownMbps))
 		if nodeHysteria2.ObfsPassword != nil && *nodeHysteria2.ObfsPassword != "" {
 			headBuilder.WriteString(fmt.Sprintf("&obfs=salamander&obfs-password=%s", *nodeHysteria2.ObfsPassword))
 		}
