@@ -104,6 +104,8 @@ func SelectNodeById(id *uint) (*vo.NodeOneVo, error) {
 			nodeOneVo.Hysteria2DownMbps = *nodeHysteria2.DownMbps
 			nodeOneVo.Hysteria2ServerName = *nodeHysteria2.ServerName
 			nodeOneVo.Hysteria2Insecure = *nodeHysteria2.Insecure
+			nodeOneVo.Hysteria2PortHopping = stringValue(nodeHysteria2.PortHopping)
+			nodeOneVo.Hysteria2HopInterval = uintValue(nodeHysteria2.HopInterval)
 		}
 		return &nodeOneVo, nil
 	}
@@ -250,6 +252,8 @@ func CreateNode(token string, nodeCreateDto dto.NodeCreateDto) error {
 			DownMbps:     nodeCreateDto.Hysteria2DownMbps,
 			ServerName:   nodeCreateDto.Hysteria2ServerName,
 			Insecure:     nodeCreateDto.Hysteria2Insecure,
+			PortHopping:  nodeCreateDto.Hysteria2PortHopping,
+			HopInterval:  nodeCreateDto.Hysteria2HopInterval,
 		}
 		nodeId, err = dao.CreateNodeHysteria2(&hysteria2)
 		if err != nil {
@@ -526,6 +530,8 @@ func UpdateNodeById(token string, nodeUpdateDto *dto.NodeUpdateDto) error {
 				DownMbps:     nodeUpdateDto.Hysteria2DownMbps,
 				ServerName:   nodeUpdateDto.Hysteria2ServerName,
 				Insecure:     nodeUpdateDto.Hysteria2Insecure,
+				PortHopping:  nodeUpdateDto.Hysteria2PortHopping,
+				HopInterval:  nodeUpdateDto.Hysteria2HopInterval,
 			}
 			if err = dao.UpdateNodeHysteria2ById(&nodeHysteria2); err != nil {
 				return err
@@ -627,6 +633,8 @@ func UpdateNodeById(token string, nodeUpdateDto *dto.NodeUpdateDto) error {
 				DownMbps:     nodeUpdateDto.Hysteria2DownMbps,
 				ServerName:   nodeUpdateDto.Hysteria2ServerName,
 				Insecure:     nodeUpdateDto.Hysteria2Insecure,
+				PortHopping:  nodeUpdateDto.Hysteria2PortHopping,
+				HopInterval:  nodeUpdateDto.Hysteria2HopInterval,
 			}
 			nodeId, err = dao.CreateNodeHysteria2(&hysteria2)
 			if err != nil {
@@ -836,10 +844,13 @@ func NodeURL(accountId *uint, username *string, id *uint) (string, uint, error) 
 		if err != nil {
 			return "", 0, errors.New(constant.NodeURLError)
 		}
-		headBuilder.WriteString(fmt.Sprintf("hysteria2://%s@%s:%d?insecure=%d&upmbps=%d&downmbps=%d",
+		server := fmt.Sprintf("%s:%d", *node.Domain, *node.Port)
+		if portHopping := normalizedHysteria2PortHopping(nodeHysteria2.PortHopping); portHopping != "" {
+			server = fmt.Sprintf("%s:%s", *node.Domain, portHopping)
+		}
+		headBuilder.WriteString(fmt.Sprintf("hysteria2://%s@%s?insecure=%d&upmbps=%d&downmbps=%d",
 			password,
-			*node.Domain,
-			*node.Port,
+			server,
 			*nodeHysteria2.Insecure,
 			*nodeHysteria2.UpMbps,
 			*nodeHysteria2.DownMbps))

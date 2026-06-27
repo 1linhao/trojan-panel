@@ -76,6 +76,8 @@ type NodeOneVo struct {
 	Hysteria2ServerName   string `json:"hysteria2ServerName"`
 	Hysteria2Insecure     uint   `json:"hysteria2Insecure"`
 	Hysteria2FastOpen     uint   `json:"hysteria2FastOpen"`
+	Hysteria2PortHopping  string `json:"hysteria2PortHopping"`
+	Hysteria2HopInterval  uint   `json:"hysteria2HopInterval"`
 
 	NaiveProxyUsername string `json:"naiveProxyUsername"`
 }

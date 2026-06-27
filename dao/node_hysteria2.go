@@ -12,7 +12,7 @@ import (
 func SelectNodeHysteria2ById(id *uint) (*model.NodeHysteria2, error) {
 	var nodeHysteria2 model.NodeHysteria2
 	where := map[string]interface{}{"id": *id}
-	selectFields := []string{"id", "obfs_password", "up_mbps", "down_mbps", "server_name", "insecure"}
+	selectFields := []string{"id", "obfs_password", "up_mbps", "down_mbps", "server_name", "insecure", "port_hopping", "hop_interval"}
 	buildSelect, values, err := builder.BuildSelect("node_hysteria2", where, selectFields)
 	if err != nil {
 		logrus.Errorln(err.Error())
@@ -50,6 +50,12 @@ func CreateNodeHysteria2(nodeHysteria2 *model.NodeHysteria2) (uint, error) {
 	}
 	if nodeHysteria2.Insecure != nil {
 		nodeHysteria2Create["insecure"] = *nodeHysteria2.Insecure
+	}
+	if nodeHysteria2.PortHopping != nil {
+		nodeHysteria2Create["port_hopping"] = *nodeHysteria2.PortHopping
+	}
+	if nodeHysteria2.HopInterval != nil {
+		nodeHysteria2Create["hop_interval"] = *nodeHysteria2.HopInterval
 	}
 	if len(nodeHysteria2Create) > 0 {
 		var data []map[string]interface{}
@@ -91,6 +97,12 @@ func UpdateNodeHysteria2ById(nodeHysteria2 *model.NodeHysteria2) error {
 	}
 	if nodeHysteria2.Insecure != nil {
 		update["insecure"] = *nodeHysteria2.Insecure
+	}
+	if nodeHysteria2.PortHopping != nil {
+		update["port_hopping"] = *nodeHysteria2.PortHopping
+	}
+	if nodeHysteria2.HopInterval != nil {
+		update["hop_interval"] = *nodeHysteria2.HopInterval
 	}
 	if len(update) > 0 {
 		buildUpdate, values, err := builder.BuildUpdate("node_hysteria2", where, update)

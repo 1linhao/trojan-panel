@@ -54,6 +54,10 @@ func InitMySQL() {
 		logrus.Errorf("database migration err: %v", err)
 		panic(err)
 	}
+	if err = migrateHysteria2PortHoppingColumns(); err != nil {
+		logrus.Errorf("database migration err: %v", err)
+		panic(err)
+	}
 }
 
 func migrateNodeUotColumns() error {
@@ -83,6 +87,22 @@ func migrateSingBoxSubscribePermission() error {
 			continue
 		}
 		if _, err := db.Exec("INSERT INTO `casbin_rule` (`p_type`, `v0`, `v1`, `v2`, `v3`, `v4`, `v5`) VALUES ('p', ?, '/api/account/clashSubscribeForSb', 'GET', '', '', '')", role); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func migrateHysteria2PortHoppingColumns() error {
+	migrations := []string{
+		"ALTER TABLE `node_hysteria2` ADD COLUMN `port_hopping` varchar(128) NOT NULL DEFAULT '' COMMENT 'Hysteria2客户端端口跳跃范围' AFTER `insecure`",
+		"ALTER TABLE `node_hysteria2` ADD COLUMN `hop_interval` int(10) unsigned NOT NULL DEFAULT '0' COMMENT 'Hysteria2客户端端口跳跃间隔秒数' AFTER `port_hopping`",
+	}
+	for _, migration := range migrations {
+		if _, err := db.Exec(migration); err != nil {
+			if strings.Contains(err.Error(), "Duplicate column name") {
+				continue
+			}
 			return err
 		}
 	}

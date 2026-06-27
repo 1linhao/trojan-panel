@@ -20,6 +20,7 @@ func InitValidator() {
 	_ = validate.RegisterValidation("validateInt", validateInt)
 	_ = validate.RegisterValidation("validateOrderFields", validateOrderFields)
 	_ = validate.RegisterValidation("validateObfsPassword", validateObfsPassword)
+	_ = validate.RegisterValidation("validateHysteria2PortHopping", validateHysteria2PortHopping)
 }
 
 // 字符串必须是字母和数字的组合
@@ -78,4 +79,33 @@ func validateObfsPassword(f validator.FieldLevel) bool {
 	field := f.Field().String()
 	fieldLen := len(field)
 	return fieldLen == 0 || fieldLen >= 4 && fieldLen <= 64
+}
+
+func validateHysteria2PortHopping(f validator.FieldLevel) bool {
+	field := strings.TrimSpace(f.Field().String())
+	if field == "" {
+		return true
+	}
+	parts := strings.Split(field, ",")
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			return false
+		}
+		rangeParts := strings.Split(part, "-")
+		if len(rangeParts) > 2 {
+			return false
+		}
+		start, err := strconv.ParseUint(strings.TrimSpace(rangeParts[0]), 10, 16)
+		if err != nil || start == 0 {
+			return false
+		}
+		if len(rangeParts) == 2 {
+			end, err := strconv.ParseUint(strings.TrimSpace(rangeParts[1]), 10, 16)
+			if err != nil || end == 0 || start > end {
+				return false
+			}
+		}
+	}
+	return true
 }

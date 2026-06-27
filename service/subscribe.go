@@ -253,6 +253,10 @@ func SubscribeClash(pass string) (*model.Account, string, []byte, vo.SystemVo, e
 			if nodeHysteria2.ServerName != nil && *nodeHysteria2.ServerName != "" {
 				hysteria2.Sni = *nodeHysteria2.ServerName
 			}
+			if portHopping := normalizedHysteria2PortHopping(nodeHysteria2.PortHopping); portHopping != "" {
+				hysteria2.Ports = portHopping
+				hysteria2.HopInterval = uintValue(nodeHysteria2.HopInterval)
+			}
 			ClashConfigInterface = append(ClashConfigInterface, hysteria2)
 			proxies = append(proxies, *item.Name)
 		}
@@ -854,6 +858,13 @@ func buildSingBoxOutbound(item model.Node, pass string, username string) (map[st
 			outbound["obfs"] = map[string]interface{}{
 				"type":     "salamander",
 				"password": *nodeHysteria2.ObfsPassword,
+			}
+		}
+		if serverPorts := singBoxHysteria2ServerPorts(nodeHysteria2.PortHopping); len(serverPorts) > 0 {
+			delete(outbound, "server_port")
+			outbound["server_ports"] = serverPorts
+			if hopInterval := uintValue(nodeHysteria2.HopInterval); hopInterval > 0 {
+				outbound["hop_interval"] = fmt.Sprintf("%ds", hopInterval)
 			}
 		}
 		return outbound, nil

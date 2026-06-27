@@ -9,6 +9,8 @@ type NodeHysteria2 struct {
 	DownMbps     *int       `ddb:"down_mbps"`
 	ServerName   *string    `ddb:"server_name"`
 	Insecure     *uint      `ddb:"insecure"`
+	PortHopping  *string    `ddb:"port_hopping"`
+	HopInterval  *uint      `ddb:"hop_interval"`
 	CreateTime   *time.Time `ddb:"create_time"`
 	UpdateTime   *time.Time `ddb:"update_time"`
 }

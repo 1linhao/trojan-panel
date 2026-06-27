@@ -113,6 +113,8 @@ type Hysteria2 struct {
 	Type           string `yaml:"type"`
 	Server         string `yaml:"server"`
 	Port           uint   `yaml:"port"`
+	Ports          string `yaml:"ports,omitempty"`
+	HopInterval    uint   `yaml:"hop-interval,omitempty"`
 	Up             int    `yaml:"up,omitempty"`
 	Down           int    `yaml:"down,omitempty"`
 	Password       string `yaml:"password"`
