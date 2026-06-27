@@ -36,6 +36,10 @@ func singBoxHysteria2ServerPorts(value *string) []string {
 	parts := strings.Split(portHopping, ",")
 	serverPorts := make([]string, 0, len(parts))
 	for _, part := range parts {
+		if !strings.Contains(part, "-") {
+			serverPorts = append(serverPorts, part+":"+part)
+			continue
+		}
 		serverPorts = append(serverPorts, strings.ReplaceAll(part, "-", ":"))
 	}
 	return serverPorts
