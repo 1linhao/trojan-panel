@@ -28,6 +28,9 @@ func SelectSystemByName(name *string) (vo.SystemVo, error) {
 			logrus.Errorln(fmt.Sprintf("SelectSystemByName SystemVo deserialization err: %v", err))
 			return systemVo, errors.New(constant.SysError)
 		}
+		if err = hydrateSystemTemplateDefaults(&systemVo); err != nil {
+			return systemVo, err
+		}
 		return systemVo, nil
 	} else {
 		system, err := dao.SelectSystemByName(name)
@@ -51,15 +54,20 @@ func SelectSystemByName(name *string) (vo.SystemVo, error) {
 			return systemVo, errors.New(constant.SysError)
 		}
 		// 读取Clash规则默认模板文件
-		clashRuleContent, err := os.ReadFile(constant.ClashRuleFilePath)
+		clashRuleContent, err := os.ReadFile(constant.ClashTemplateFilePath)
 		if err != nil {
 			logrus.Errorln(fmt.Sprintf("failed to read default template of Clash rule err: %v", err))
 			return systemVo, errors.New(constant.SysError)
 		}
 		// 读取sing-box客户端默认模板文件
-		singBoxRuleContent, err := os.ReadFile(constant.SingBoxRuleFilePath)
+		singBoxTunContent, err := os.ReadFile(constant.SingBoxTunTemplateFilePath)
 		if err != nil {
 			logrus.Errorln(fmt.Sprintf("failed to read default template of sing-box err: %v", err))
+			return systemVo, errors.New(constant.SysError)
+		}
+		singBoxOutboundContent, err := os.ReadFile(constant.SingBoxOutboundTemplateFilePath)
+		if err != nil {
+			logrus.Errorln(fmt.Sprintf("failed to read outbound template of sing-box err: %v", err))
 			return systemVo, errors.New(constant.SysError)
 		}
 		// 读取Xray默认模板文件
@@ -69,6 +77,7 @@ func SelectSystemByName(name *string) (vo.SystemVo, error) {
 			return systemVo, errors.New(constant.SysError)
 		}
 
+		normalizeTemplateNames(&systemTemplateConfigBo)
 		systemVo = vo.SystemVo{
 			Id:                          *system.Id,
 			RegisterEnable:              systemAccountConfigBo.RegisterEnable,
@@ -86,8 +95,13 @@ func SelectSystemByName(name *string) (vo.SystemVo, error) {
 			EmailPassword:               systemEmailConfigBo.EmailPassword,
 			SystemName:                  systemTemplateConfigBo.SystemName,
 			ClashRule:                   string(clashRuleContent),
-			SingBoxRule:                 string(singBoxRuleContent),
+			SingBoxTun:                  string(singBoxTunContent),
+			SingBoxOutbound:             string(singBoxOutboundContent),
 			XrayTemplate:                string(xrayTemplateContent),
+			ClashTemplateName:           systemTemplateConfigBo.ClashTemplateName,
+			SingBoxTunTemplateName:      systemTemplateConfigBo.SingBoxTunTemplateName,
+			SingBoxOutboundTemplateName: systemTemplateConfigBo.SingBoxOutboundTemplateName,
+			XrayTemplateName:            systemTemplateConfigBo.XrayTemplateName,
 		}
 
 		systemVoJson, err := json.Marshal(systemVo)
@@ -99,6 +113,38 @@ func SelectSystemByName(name *string) (vo.SystemVo, error) {
 
 		return systemVo, nil
 	}
+}
+
+func hydrateSystemTemplateDefaults(systemVo *vo.SystemVo) error {
+	if systemVo.ClashTemplateName == "" {
+		systemVo.ClashTemplateName = "Default"
+	}
+	if systemVo.SingBoxTunTemplateName == "" {
+		systemVo.SingBoxTunTemplateName = "TUN"
+	}
+	if systemVo.SingBoxOutboundTemplateName == "" {
+		systemVo.SingBoxOutboundTemplateName = "Outbound only"
+	}
+	if systemVo.XrayTemplateName == "" {
+		systemVo.XrayTemplateName = "Default"
+	}
+	if systemVo.SingBoxTun == "" {
+		content, err := os.ReadFile(constant.SingBoxTunTemplateFilePath)
+		if err != nil {
+			logrus.Errorf("failed to read TUN template of sing-box err: %v", err)
+			return errors.New(constant.SysError)
+		}
+		systemVo.SingBoxTun = string(content)
+	}
+	if systemVo.SingBoxOutbound == "" {
+		content, err := os.ReadFile(constant.SingBoxOutboundTemplateFilePath)
+		if err != nil {
+			logrus.Errorf("failed to read outbound template of sing-box err: %v", err)
+			return errors.New(constant.SysError)
+		}
+		systemVo.SingBoxOutbound = string(content)
+	}
+	return nil
 }
 
 func UpdateSystemById(systemDto dto.SystemUpdateDto) error {
@@ -159,25 +205,53 @@ func UpdateSystemById(systemDto dto.SystemUpdateDto) error {
 	if systemDto.SystemName != nil {
 		systemTemplateConfigBo.SystemName = *systemDto.SystemName
 	}
+	if systemDto.ClashTemplateName != nil {
+		systemTemplateConfigBo.ClashTemplateName = *systemDto.ClashTemplateName
+	}
+	if systemDto.SingBoxTunTemplateName != nil {
+		systemTemplateConfigBo.SingBoxTunTemplateName = *systemDto.SingBoxTunTemplateName
+	}
+	if systemDto.SingBoxOutboundTemplateName != nil {
+		systemTemplateConfigBo.SingBoxOutboundTemplateName = *systemDto.SingBoxOutboundTemplateName
+	}
+	if systemDto.XrayTemplateName != nil {
+		systemTemplateConfigBo.XrayTemplateName = *systemDto.XrayTemplateName
+	}
+	normalizeTemplateNames(&systemTemplateConfigBo)
 	if systemDto.ClashRule != nil {
 		// 修改Clash规则默认模板文件
-		if err := os.WriteFile(constant.ClashRuleFilePath, []byte(*systemDto.ClashRule), 0666); err != nil {
+		if err := os.WriteFile(constant.ClashTemplateFilePath, []byte(*systemDto.ClashRule), 0666); err != nil {
 			logrus.Errorln(fmt.Sprintf("write Clash rule default template file err: %v", err))
 		}
 	}
-	if systemDto.SingBoxRule != nil {
+	if systemDto.SingBoxTun != nil {
 		var singBoxTemplate map[string]interface{}
-		if err = json.Unmarshal([]byte(*systemDto.SingBoxRule), &singBoxTemplate); err != nil {
-			logrus.Errorf("systemDto SingBoxRule deserialization err: %v", err)
+		if err = json.Unmarshal([]byte(*systemDto.SingBoxTun), &singBoxTemplate); err != nil {
+			logrus.Errorf("systemDto SingBoxTun deserialization err: %v", err)
 			return err
 		}
 		singBoxTemplateStr, err := json.MarshalIndent(singBoxTemplate, "", "  ")
 		if err != nil {
-			logrus.Errorf("SingBoxRule serialization err: %v", err)
+			logrus.Errorf("SingBoxTun serialization err: %v", err)
 			return err
 		}
-		if err := os.WriteFile(constant.SingBoxRuleFilePath, singBoxTemplateStr, 0666); err != nil {
+		if err := os.WriteFile(constant.SingBoxTunTemplateFilePath, singBoxTemplateStr, 0666); err != nil {
 			logrus.Errorln(fmt.Sprintf("write sing-box default template file err: %v", err))
+		}
+	}
+	if systemDto.SingBoxOutbound != nil {
+		var singBoxTemplate map[string]interface{}
+		if err = json.Unmarshal([]byte(*systemDto.SingBoxOutbound), &singBoxTemplate); err != nil {
+			logrus.Errorf("systemDto SingBoxOutbound deserialization err: %v", err)
+			return err
+		}
+		singBoxTemplateStr, err := json.MarshalIndent(singBoxTemplate, "", "  ")
+		if err != nil {
+			logrus.Errorf("SingBoxOutbound serialization err: %v", err)
+			return err
+		}
+		if err := os.WriteFile(constant.SingBoxOutboundTemplateFilePath, singBoxTemplateStr, 0666); err != nil {
+			logrus.Errorln(fmt.Sprintf("write sing-box outbound template file err: %v", err))
 		}
 	}
 	if systemDto.XrayTemplate != nil {
@@ -215,4 +289,19 @@ func UpdateSystemById(systemDto dto.SystemUpdateDto) error {
 	}
 	_ = redis.Client.Key.RetryDel("trojan-panel:system")
 	return nil
+}
+
+func normalizeTemplateNames(config *bo.SystemTemplateConfigBo) {
+	if config.ClashTemplateName == "" {
+		config.ClashTemplateName = "Default"
+	}
+	if config.SingBoxTunTemplateName == "" {
+		config.SingBoxTunTemplateName = "TUN"
+	}
+	if config.SingBoxOutboundTemplateName == "" {
+		config.SingBoxOutboundTemplateName = "Outbound only"
+	}
+	if config.XrayTemplateName == "" {
+		config.XrayTemplateName = "Default"
+	}
 }

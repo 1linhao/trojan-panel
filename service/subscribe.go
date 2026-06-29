@@ -1,11 +1,13 @@
 package service
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
+	"strings"
 	"trojan-panel/dao"
 	"trojan-panel/model"
 	"trojan-panel/model/bo"
@@ -287,7 +289,7 @@ func SubscribeClash(pass string) (*model.Account, string, []byte, vo.SystemVo, e
 	return account, userInfo, clashConfigYaml, systemConfig, nil
 }
 
-func SubscribeSingBox(pass string) (*model.Account, string, []byte, error) {
+func SubscribeSingBox(pass string, templateId string) (*model.Account, string, []byte, error) {
 	account, err := dao.SelectAccountClashSubscribe(pass)
 	if err != nil {
 		return nil, "", []byte{}, err
@@ -316,28 +318,32 @@ func SubscribeSingBox(pass string) (*model.Account, string, []byte, error) {
 		outbounds = append(outbounds, outbound)
 		proxyTags = append(proxyTags, *item.Name)
 	}
-	selectorOutbounds := append([]string{}, proxyTags...)
-	selectorDefault := "DIRECT"
-	if len(selectorOutbounds) > 0 {
-		selectorDefault = selectorOutbounds[0]
-		selectorOutbounds = append(selectorOutbounds, "DIRECT")
-	} else {
-		selectorOutbounds = append(selectorOutbounds, "DIRECT")
-	}
-	outbounds = append(outbounds, map[string]interface{}{
-		"type":      "selector",
-		"tag":       "PROXY",
-		"outbounds": selectorOutbounds,
-		"default":   selectorDefault,
-	})
-	outbounds = append(outbounds, map[string]interface{}{"type": "direct", "tag": "DIRECT"})
-
 	systemName := constant.SystemName
 	systemConfig, err := SelectSystemByName(&systemName)
 	if err != nil {
 		return nil, "", []byte{}, errors.New(constant.SysError)
 	}
-	singBoxConfig, err := buildSingBoxConfig(systemConfig.SingBoxRule, outbounds)
+	var singBoxConfig map[string]interface{}
+	if templateId == "outbound" {
+		singBoxConfig, err = buildSingBoxOutboundConfig(systemConfig.SingBoxOutbound, outbounds)
+	} else {
+		selectorOutbounds := append([]string{}, proxyTags...)
+		selectorDefault := "DIRECT"
+		if len(selectorOutbounds) > 0 {
+			selectorDefault = selectorOutbounds[0]
+			selectorOutbounds = append(selectorOutbounds, "DIRECT")
+		} else {
+			selectorOutbounds = append(selectorOutbounds, "DIRECT")
+		}
+		outbounds = append(outbounds, map[string]interface{}{
+			"type":      "selector",
+			"tag":       "PROXY",
+			"outbounds": selectorOutbounds,
+			"default":   selectorDefault,
+		})
+		outbounds = append(outbounds, map[string]interface{}{"type": "direct", "tag": "DIRECT"})
+		singBoxConfig, err = buildSingBoxConfig(systemConfig.SingBoxTun, outbounds)
+	}
 	if err != nil {
 		logrus.Errorf("sing-box template config deserialization err: %v", err)
 		return nil, "", []byte{}, errors.New(constant.SysError)
@@ -347,6 +353,75 @@ func SubscribeSingBox(pass string) (*model.Account, string, []byte, error) {
 		return nil, "", []byte{}, errors.New(constant.SysError)
 	}
 	return account, userInfo, singBoxConfigJson, nil
+}
+
+func SubscribeV2Ray(pass string) (*model.Account, string, []byte, error) {
+	account, err := dao.SelectAccountClashSubscribe(pass)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	nodes, err := dao.SelectNodes()
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	urls := make([]string, 0, len(nodes))
+	for _, node := range nodes {
+		if node.NodeTypeId == nil || *node.NodeTypeId != constant.Xray {
+			continue
+		}
+		nodeUrl, _, err := NodeURL(account.Id, account.Username, node.Id)
+		if err != nil {
+			return nil, "", nil, err
+		}
+		if nodeUrl != "" {
+			urls = append(urls, nodeUrl)
+		}
+	}
+	userInfo := fmt.Sprintf("upload=%d; download=%d; total=%d; expire=%d",
+		*account.Upload,
+		*account.Download,
+		*account.Quota,
+		*account.ExpireTime/1000)
+	content := base64.StdEncoding.EncodeToString([]byte(strings.Join(urls, "\n")))
+	return account, userInfo, []byte(content), nil
+}
+
+func ExportOptions() ([]vo.ClientExportOptionVo, error) {
+	systemName := constant.SystemName
+	systemConfig, err := SelectSystemByName(&systemName)
+	if err != nil {
+		return nil, err
+	}
+	defaultName := func(name string, fallback string) string {
+		if name == "" {
+			return fallback
+		}
+		return name
+	}
+	return []vo.ClientExportOptionVo{
+		{
+			Id:   "sing-box",
+			Name: "sing-box",
+			Templates: []vo.ClientTemplateVo{
+				{Id: "tun", Name: defaultName(systemConfig.SingBoxTunTemplateName, "TUN")},
+				{Id: "outbound", Name: defaultName(systemConfig.SingBoxOutboundTemplateName, "Outbound only")},
+			},
+			Formats: []string{"link", "file"},
+		},
+		{
+			Id:        "clash-meta",
+			Name:      "Clash.Meta",
+			Templates: []vo.ClientTemplateVo{{Id: "default", Name: defaultName(systemConfig.ClashTemplateName, "Default")}},
+			Formats:   []string{"link", "file"},
+		},
+		{
+			Id:        "v2ray",
+			Name:      "V2Ray",
+			Templates: []vo.ClientTemplateVo{{Id: "default", Name: defaultName(systemConfig.XrayTemplateName, "Default")}},
+			Formats:   []string{"link", "file", "qrcode"},
+		},
+	}, nil
 }
 
 func buildSingBoxConfig(template string, outbounds []map[string]interface{}) (map[string]interface{}, error) {
@@ -359,11 +434,6 @@ func buildSingBoxConfig(template string, outbounds []map[string]interface{}) (ma
 	if len(singBoxConfig) == 0 {
 		if err := json.Unmarshal([]byte(constant.SingBoxRoute), &singBoxConfig); err != nil {
 			return nil, err
-		}
-	}
-	if isLegacySingBoxRouteTemplate(singBoxConfig) {
-		singBoxConfig = map[string]interface{}{
-			"route": singBoxConfig,
 		}
 	}
 	delete(singBoxConfig, "outbounds")
@@ -393,6 +463,79 @@ func buildSingBoxConfig(template string, outbounds []map[string]interface{}) (ma
 	normalizeSingBoxRoute(routeConfig)
 	normalizeSingBoxRuleSet(routeConfig)
 	singBoxConfig["outbounds"] = outbounds
+	return singBoxConfig, nil
+}
+
+func buildSingBoxOutboundConfig(template string, outbounds []map[string]interface{}) (map[string]interface{}, error) {
+	singBoxConfig := map[string]interface{}{}
+	if template != "" {
+		if err := json.Unmarshal([]byte(template), &singBoxConfig); err != nil {
+			return nil, err
+		}
+	}
+	if len(singBoxConfig) == 0 {
+		if err := json.Unmarshal([]byte(constant.SingBoxOutbound), &singBoxConfig); err != nil {
+			return nil, err
+		}
+	}
+	delete(singBoxConfig, "outbounds")
+
+	baseInbound := map[string]interface{}{
+		"type":        "socks",
+		"tag":         "socks-in",
+		"listen":      "127.0.0.1",
+		"listen_port": float64(10808),
+	}
+	if inbounds, ok := singBoxConfig["inbounds"].([]interface{}); ok {
+		for _, item := range inbounds {
+			inbound, ok := item.(map[string]interface{})
+			if ok && inbound["type"] == "socks" {
+				baseInbound = inbound
+				break
+			}
+		}
+	}
+	startPort := 10808
+	switch value := baseInbound["listen_port"].(type) {
+	case float64:
+		startPort = int(value)
+	case int:
+		startPort = value
+	}
+	if startPort < 1 || startPort+len(outbounds)-1 > 65535 {
+		return nil, errors.New("sing-box SOCKS listen port range is invalid")
+	}
+
+	inbounds := make([]map[string]interface{}, 0, len(outbounds))
+	rules := make([]map[string]interface{}, 0, len(outbounds))
+	for index, outbound := range outbounds {
+		tag, _ := outbound["tag"].(string)
+		if tag == "" {
+			continue
+		}
+		inbound := make(map[string]interface{}, len(baseInbound))
+		for key, value := range baseInbound {
+			inbound[key] = value
+		}
+		inboundTag := fmt.Sprintf("socks-in-%d", index+1)
+		inbound["type"] = "socks"
+		inbound["tag"] = inboundTag
+		inbound["listen_port"] = startPort + index
+		inbounds = append(inbounds, inbound)
+		rules = append(rules, map[string]interface{}{
+			"inbound":  inboundTag,
+			"action":   "route",
+			"outbound": tag,
+		})
+	}
+	singBoxConfig["inbounds"] = inbounds
+	singBoxConfig["outbounds"] = outbounds
+	route, ok := singBoxConfig["route"].(map[string]interface{})
+	if !ok {
+		route = map[string]interface{}{}
+		singBoxConfig["route"] = route
+	}
+	route["rules"] = rules
 	return singBoxConfig, nil
 }
 
@@ -503,26 +646,6 @@ func defaultSingBoxDNSRules() []map[string]interface{} {
 			"server":     "remote",
 		},
 	}
-}
-
-func isLegacySingBoxRouteTemplate(config map[string]interface{}) bool {
-	if _, ok := config["route"]; ok {
-		return false
-	}
-	if _, ok := config["inbounds"]; ok {
-		return false
-	}
-	if _, ok := config["dns"]; ok {
-		return false
-	}
-	if _, ok := config["log"]; ok {
-		return false
-	}
-	_, hasFinal := config["final"]
-	_, hasRules := config["rules"]
-	_, hasAutoDetectInterface := config["auto_detect_interface"]
-	_, hasRuleSet := config["rule_set"]
-	return hasFinal || hasRules || hasAutoDetectInterface || hasRuleSet
 }
 
 func defaultSingBoxTunInbounds() []map[string]interface{} {

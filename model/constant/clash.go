@@ -14,7 +14,6 @@ const ClashRules = `rules:
   - RULE-SET,lancidr,DIRECT
   - RULE-SET,cncidr,DIRECT
   - RULE-SET,telegramcidr,PROXY
-  - GEOIP,,DIRECT
   - GEOIP,CN,DIRECT
   - MATCH,PROXY
 
@@ -225,5 +224,22 @@ const SingBoxRoute = `{
     "clash_api": {
       "default_mode": "rule"
     }
+  }
+}`
+
+const SingBoxOutbound = `{
+  "log": {
+    "level": "info"
+  },
+  "inbounds": [
+    {
+      "type": "socks",
+      "tag": "socks-in",
+      "listen": "127.0.0.1",
+      "listen_port": 10808
+    }
+  ],
+  "route": {
+    "rules": []
   }
 }`

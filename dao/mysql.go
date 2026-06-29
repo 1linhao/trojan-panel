@@ -50,7 +50,7 @@ func InitMySQL() {
 		logrus.Errorf("database migration err: %v", err)
 		panic(err)
 	}
-	if err = migrateSingBoxSubscribePermission(); err != nil {
+	if err = migrateClientExportPermissions(); err != nil {
 		logrus.Errorf("database migration err: %v", err)
 		panic(err)
 	}
@@ -58,6 +58,30 @@ func InitMySQL() {
 		logrus.Errorf("database migration err: %v", err)
 		panic(err)
 	}
+}
+
+func migrateClientExportPermissions() error {
+	paths := []string{
+		"/api/account/exportOptions",
+		"/api/account/exportSubscribe",
+		"/api/account/exportQRCode",
+	}
+	for _, role := range []string{"sysadmin", "admin", "user"} {
+		for _, path := range paths {
+			var count int
+			if err := db.QueryRow("SELECT COUNT(1) FROM `casbin_rule` WHERE `p_type` = 'p' AND `v0` = ? AND `v1` = ? AND `v2` = 'GET'", role, path).
+				Scan(&count); err != nil {
+				return err
+			}
+			if count > 0 {
+				continue
+			}
+			if _, err := db.Exec("INSERT INTO `casbin_rule` (`p_type`, `v0`, `v1`, `v2`, `v3`, `v4`, `v5`) VALUES ('p', ?, ?, 'GET', '', '', '')", role, path); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func migrateNodeUotColumns() error {
@@ -70,23 +94,6 @@ func migrateNodeUotColumns() error {
 			if strings.Contains(err.Error(), "Duplicate column name") {
 				continue
 			}
-			return err
-		}
-	}
-	return nil
-}
-
-func migrateSingBoxSubscribePermission() error {
-	for _, role := range []string{"admin", "user"} {
-		var count int
-		if err := db.QueryRow("SELECT COUNT(1) FROM `casbin_rule` WHERE `p_type` = 'p' AND `v0` = ? AND `v1` = '/api/account/clashSubscribeForSb' AND `v2` = 'GET'", role).
-			Scan(&count); err != nil {
-			return err
-		}
-		if count > 0 {
-			continue
-		}
-		if _, err := db.Exec("INSERT INTO `casbin_rule` (`p_type`, `v0`, `v1`, `v2`, `v3`, `v4`, `v5`) VALUES ('p', ?, '/api/account/clashSubscribeForSb', 'GET', '', '', '')", role); err != nil {
 			return err
 		}
 	}

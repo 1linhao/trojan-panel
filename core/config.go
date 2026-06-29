@@ -190,9 +190,9 @@ m = g(r.sub, p.sub) && r.obj == p.obj && r.act == p.act
 		}
 	}
 
-	clashRuleFilePath := constant.ClashRuleFilePath
-	if !util.Exists(clashRuleFilePath) {
-		file, err := os.Create(clashRuleFilePath)
+	clashTemplateFilePath := constant.ClashTemplateFilePath
+	if !util.Exists(clashTemplateFilePath) {
+		file, err := os.Create(clashTemplateFilePath)
 		if err != nil {
 			logrus.Errorf("create file clash-rule.yaml err: %v", err)
 			panic(err)
@@ -205,10 +205,9 @@ m = g(r.sub, p.sub) && r.obj == p.obj && r.act == p.act
 			panic(err)
 		}
 	}
-
-	singBoxRuleFilePath := constant.SingBoxRuleFilePath
-	if !util.Exists(singBoxRuleFilePath) {
-		file, err := os.Create(singBoxRuleFilePath)
+	singBoxTunTemplateFilePath := constant.SingBoxTunTemplateFilePath
+	if !util.Exists(singBoxTunTemplateFilePath) {
+		file, err := os.Create(singBoxTunTemplateFilePath)
 		if err != nil {
 			logrus.Errorf("create file sing-box-route.json err: %v", err)
 			panic(err)
@@ -218,6 +217,21 @@ m = g(r.sub, p.sub) && r.obj == p.obj && r.act == p.act
 		_, err = file.WriteString(constant.SingBoxRoute)
 		if err != nil {
 			logrus.Errorf("sing-box-route.json file write err: %v", err)
+			panic(err)
+		}
+	}
+
+	singBoxOutboundFilePath := constant.SingBoxOutboundTemplateFilePath
+	if !util.Exists(singBoxOutboundFilePath) {
+		file, err := os.Create(singBoxOutboundFilePath)
+		if err != nil {
+			logrus.Errorf("create file template-sing-box-outbound.json err: %v", err)
+			panic(err)
+		}
+		defer file.Close()
+
+		if _, err = file.WriteString(constant.SingBoxOutbound); err != nil {
+			logrus.Errorf("template-sing-box-outbound.json file write err: %v", err)
 			panic(err)
 		}
 	}

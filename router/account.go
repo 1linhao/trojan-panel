@@ -26,10 +26,12 @@ func initAccountRouter(trojanApi *gin.RouterGroup) {
 		account.POST("/updateAccountProperty", api.UpdateAccountProperty)
 		// 修改账户
 		account.POST("/updateAccountById", api.UpdateAccountById)
-		// 获取Clash订阅地址
-		account.GET("/clashSubscribe", api.ClashSubscribe)
-		// 获取指定人的Clash订阅地址
-		account.GET("/clashSubscribeForSb", api.ClashSubscribeForSb)
+		// 获取客户端导出选项
+		account.GET("/exportOptions", api.ExportOptions)
+		// 获取当前用户的订阅地址
+		account.GET("/exportSubscribe", api.ExportSubscribe)
+		// 获取当前用户的订阅二维码
+		account.GET("/exportQRCode", api.ExportQRCode)
 		// 重设下载和上传流量
 		account.POST("/resetAccountDownloadAndUpload", api.ResetAccountDownloadAndUpload)
 		// 导出用户

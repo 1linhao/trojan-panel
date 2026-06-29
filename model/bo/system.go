@@ -20,5 +20,9 @@ type SystemEmailConfigBo struct {
 }
 
 type SystemTemplateConfigBo struct {
-	SystemName string `json:"systemName" redis:"systemName"`
+	SystemName                  string `json:"systemName" redis:"systemName"`
+	ClashTemplateName           string `json:"clashTemplateName" redis:"clashTemplateName"`
+	SingBoxTunTemplateName      string `json:"singBoxTunTemplateName" redis:"singBoxTunTemplateName"`
+	SingBoxOutboundTemplateName string `json:"singBoxOutboundTemplateName" redis:"singBoxOutboundTemplateName"`
+	XrayTemplateName            string `json:"xrayTemplateName" redis:"xrayTemplateName"`
 }

@@ -17,8 +17,14 @@ type SystemUpdateDto struct {
 	EmailUsername    *string `json:"emailUsername" form:"emailUsername" validate:"omitempty,min=0,max=32"`
 	EmailPassword    *string `json:"emailPassword" form:"emailPassword" validate:"omitempty,min=0,max=32"`
 
-	SystemName   *string `json:"systemName" form:"systemName" validate:"omitempty,min=0,max=32"`
-	ClashRule    *string `json:"clashRule" form:"clashRule" validate:"omitempty,min=0,max=102400"`
-	SingBoxRule  *string `json:"singBoxRule" form:"singBoxRule" validate:"omitempty,min=0,max=102400"`
-	XrayTemplate *string `json:"xrayTemplate" form:"xrayTemplate" validate:"omitempty,min=0,max=10240"`
+	SystemName      *string `json:"systemName" form:"systemName" validate:"omitempty,min=0,max=32"`
+	ClashRule       *string `json:"clashRule" form:"clashRule" validate:"omitempty,min=0,max=102400"`
+	SingBoxTun      *string `json:"singBoxTun" form:"singBoxTun" validate:"omitempty,min=0,max=102400"`
+	SingBoxOutbound *string `json:"singBoxOutbound" form:"singBoxOutbound" validate:"omitempty,min=0,max=102400"`
+	XrayTemplate    *string `json:"xrayTemplate" form:"xrayTemplate" validate:"omitempty,min=0,max=10240"`
+
+	ClashTemplateName           *string `json:"clashTemplateName" form:"clashTemplateName" validate:"omitempty,min=1,max=32"`
+	SingBoxTunTemplateName      *string `json:"singBoxTunTemplateName" form:"singBoxTunTemplateName" validate:"omitempty,min=1,max=32"`
+	SingBoxOutboundTemplateName *string `json:"singBoxOutboundTemplateName" form:"singBoxOutboundTemplateName" validate:"omitempty,min=1,max=32"`
+	XrayTemplateName            *string `json:"xrayTemplateName" form:"xrayTemplateName" validate:"omitempty,min=1,max=32"`
 }
