@@ -13,6 +13,7 @@ import (
 	"trojan-panel/model/bo"
 	"trojan-panel/model/constant"
 	"trojan-panel/model/vo"
+	"trojan-panel/service/clientcompat"
 	"trojan-panel/util"
 )
 
@@ -367,7 +368,7 @@ func SubscribeV2Ray(pass string) (*model.Account, string, []byte, error) {
 
 	urls := make([]string, 0, len(nodes))
 	for _, node := range nodes {
-		if node.NodeTypeId == nil || *node.NodeTypeId != constant.Xray {
+		if !clientcompat.SupportsV2Ray(node.NodeTypeId) {
 			continue
 		}
 		nodeUrl, _, err := NodeURL(account.Id, account.Username, node.Id)
