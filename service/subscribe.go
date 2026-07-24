@@ -359,7 +359,7 @@ func SubscribeSingBox(pass string, templateId string) (*model.Account, string, [
 	return account, userInfo, singBoxConfigJson, nil
 }
 
-func SubscribeV2Ray(pass string) (*model.Account, string, []byte, error) {
+func SubscribeV2Ray(pass string, userAgent string) (*model.Account, string, []byte, error) {
 	account, err := dao.SelectAccountClashSubscribe(pass)
 	if err != nil {
 		return nil, "", nil, err
@@ -370,11 +370,12 @@ func SubscribeV2Ray(pass string) (*model.Account, string, []byte, error) {
 	}
 
 	urls := make([]string, 0, len(nodes))
+	subscriptionFormat := clientcompat.V2RaySubscriptionFormat(userAgent)
 	for _, node := range nodes {
 		if !clientcompat.Includes(node.ClientTypes, constant.ClientV2Ray) {
 			continue
 		}
-		nodeUrl, _, err := nodeURLForClient(account.Id, account.Username, node.Id, constant.ClientV2Ray)
+		nodeUrl, _, err := nodeURLForClient(account.Id, account.Username, node.Id, subscriptionFormat)
 		if err != nil {
 			return nil, "", nil, err
 		}

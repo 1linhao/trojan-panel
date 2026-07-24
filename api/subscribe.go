@@ -106,11 +106,12 @@ func Subscribe(c *gin.Context) {
 		return
 	}
 	if client == "v2ray" {
-		account, userInfo, v2rayConfig, err := service.SubscribeV2Ray(pass)
+		account, userInfo, v2rayConfig, err := service.SubscribeV2Ray(pass, c.GetHeader("User-Agent"))
 		if err != nil {
 			vo.Fail(err.Error(), c)
 			return
 		}
+		c.Header("vary", "User-Agent")
 		c.Header("content-disposition", fmt.Sprintf("attachment; filename=%s-v2ray.txt", *account.Username))
 		c.Header("content-type", "text/plain; charset=utf-8")
 		c.Header("profile-update-interval", "12")
