@@ -19,6 +19,7 @@ import (
 	"trojan-panel/model/constant"
 	"trojan-panel/model/dto"
 	"trojan-panel/model/vo"
+	"trojan-panel/service/clientcompat"
 	"trojan-panel/util"
 )
 
@@ -37,6 +38,7 @@ func SelectNodeById(id *uint) (*vo.NodeOneVo, error) {
 			Domain:          *node.Domain,
 			Port:            *node.Port,
 			Priority:        *node.Priority,
+			Clients:         clientcompat.Decode(node.ClientTypes),
 			NaiveUotEnable:  nodeUintValue(node.NaiveUotEnable, 0),
 			NaiveUotVersion: nodeUintValue(node.NaiveUotVersion, 2),
 			CreateTime:      *node.CreateTime,
@@ -134,6 +136,14 @@ func SelectNodeInfo(id *uint, c *gin.Context) (*vo.NodeOneVo, error) {
 }
 
 func CreateNode(token string, nodeCreateDto dto.NodeCreateDto) error {
+	if err := clientcompat.ValidateNode(nodeCreateDto.NodeTypeId, nodeCreateDto.Clients); err != nil {
+		return err
+	}
+	clientTypes, err := clientcompat.Encode(nodeCreateDto.Clients)
+	if err != nil {
+		return err
+	}
+
 	// 校验端口
 	if nodeCreateDto.Port != nil && (*nodeCreateDto.Port <= 100 || *nodeCreateDto.Port >= 30000) {
 		return errors.New(constant.PortRangeError)
@@ -272,6 +282,7 @@ func CreateNode(token string, nodeCreateDto dto.NodeCreateDto) error {
 		Domain:             nodeCreateDto.Domain,
 		Port:               nodeCreateDto.Port,
 		Priority:           nodeCreateDto.Priority,
+		ClientTypes:        &clientTypes,
 		NaiveUotEnable:     nodeCreateDto.NaiveUotEnable,
 		NaiveUotVersion:    nodeCreateDto.NaiveUotVersion,
 	}
@@ -300,6 +311,7 @@ func SelectNodePage(queryName *string, nodeServerId *uint, pageNum *uint, pageSi
 			Domain:             *item.Domain,
 			Port:               *item.Port,
 			Priority:           *item.Priority,
+			Clients:            clientcompat.Decode(item.ClientTypes),
 			NaiveUotEnable:     nodeUintValue(item.NaiveUotEnable, 0),
 			NaiveUotVersion:    nodeUintValue(item.NaiveUotVersion, 2),
 			CreateTime:         *item.CreateTime,
@@ -351,6 +363,7 @@ func SelectNodePage(queryName *string, nodeServerId *uint, pageNum *uint, pageSi
 			Domain:          item.Domain,
 			Port:            item.Port,
 			Priority:        item.Priority,
+			Clients:         item.Clients,
 			NaiveUotEnable:  item.NaiveUotEnable,
 			NaiveUotVersion: item.NaiveUotVersion,
 			CreateTime:      item.CreateTime,
@@ -406,6 +419,18 @@ func DeleteNodeById(token string, id *uint) error {
 }
 
 func UpdateNodeById(token string, nodeUpdateDto *dto.NodeUpdateDto) error {
+	if err := clientcompat.ValidateNode(nodeUpdateDto.NodeTypeId, nodeUpdateDto.Clients); err != nil {
+		return err
+	}
+	var clientTypes *string
+	if nodeUpdateDto.Clients != nil {
+		value, err := clientcompat.Encode(nodeUpdateDto.Clients)
+		if err != nil {
+			return err
+		}
+		clientTypes = &value
+	}
+
 	// 校验端口
 	if nodeUpdateDto.Port != nil && (*nodeUpdateDto.Port <= 100 || *nodeUpdateDto.Port >= 30000) {
 		return errors.New(constant.PortRangeError)
@@ -543,6 +568,7 @@ func UpdateNodeById(token string, nodeUpdateDto *dto.NodeUpdateDto) error {
 			*nodeEntity.Domain != *nodeUpdateDto.Domain ||
 			*nodeEntity.Port != *nodeUpdateDto.Port ||
 			*nodeEntity.Priority != *nodeUpdateDto.Priority ||
+			(clientTypes != nil && stringValue(nodeEntity.ClientTypes) != *clientTypes) ||
 			nodeUintValue(nodeEntity.NaiveUotEnable, 0) != nodeUintValue(nodeUpdateDto.NaiveUotEnable, 0) ||
 			nodeUintValue(nodeEntity.NaiveUotVersion, 2) != nodeUintValue(nodeUpdateDto.NaiveUotVersion, 2) {
 			node := model.Node{
@@ -553,6 +579,7 @@ func UpdateNodeById(token string, nodeUpdateDto *dto.NodeUpdateDto) error {
 				Domain:          nodeUpdateDto.Domain,
 				Port:            nodeUpdateDto.Port,
 				Priority:        nodeUpdateDto.Priority,
+				ClientTypes:     clientTypes,
 				NaiveUotEnable:  nodeUpdateDto.NaiveUotEnable,
 				NaiveUotVersion: nodeUpdateDto.NaiveUotVersion,
 			}
@@ -653,6 +680,7 @@ func UpdateNodeById(token string, nodeUpdateDto *dto.NodeUpdateDto) error {
 			Domain:             nodeUpdateDto.Domain,
 			Port:               nodeUpdateDto.Port,
 			Priority:           nodeUpdateDto.Priority,
+			ClientTypes:        clientTypes,
 			NaiveUotEnable:     nodeUpdateDto.NaiveUotEnable,
 			NaiveUotVersion:    nodeUpdateDto.NaiveUotVersion,
 		}

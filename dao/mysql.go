@@ -50,6 +50,10 @@ func InitMySQL() {
 		logrus.Errorf("database migration err: %v", err)
 		panic(err)
 	}
+	if err = migrateNodeClientTypesColumn(); err != nil {
+		logrus.Errorf("database migration err: %v", err)
+		panic(err)
+	}
 	if err = migrateClientExportPermissions(); err != nil {
 		logrus.Errorf("database migration err: %v", err)
 		panic(err)
@@ -82,6 +86,14 @@ func migrateClientExportPermissions() error {
 		}
 	}
 	return nil
+}
+
+func migrateNodeClientTypesColumn() error {
+	_, err := db.Exec("ALTER TABLE `node` ADD COLUMN `client_types` varchar(64) NOT NULL DEFAULT 'sing-box,clash-meta,v2ray' COMMENT '订阅适用客户端' AFTER `priority`")
+	if err != nil && strings.Contains(err.Error(), "Duplicate column name") {
+		return nil
+	}
+	return err
 }
 
 func migrateNodeUotColumns() error {

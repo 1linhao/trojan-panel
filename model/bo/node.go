@@ -13,6 +13,7 @@ type NodeBo struct {
 	Domain             string    `json:"domain"`
 	Port               uint      `json:"port"`
 	Priority           int       `json:"priority"`
+	Clients            []string  `json:"clients"`
 	NaiveUotEnable     uint      `json:"naiveUotEnable"`
 	NaiveUotVersion    uint      `json:"naiveUotVersion"`
 	CreateTime         time.Time `json:"createTime"`

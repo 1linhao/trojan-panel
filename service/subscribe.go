@@ -44,7 +44,7 @@ func SubscribeClash(pass string) (*model.Account, string, []byte, vo.SystemVo, e
 	var ClashConfigInterface []interface{}
 	var proxies []string
 	for _, item := range nodes {
-		if *item.NodeTypeId == constant.NaiveProxy {
+		if !clientcompat.Includes(item.ClientTypes, constant.ClientClashMeta) {
 			continue
 		}
 		if *item.NodeTypeId == constant.Xray {
@@ -309,6 +309,9 @@ func SubscribeSingBox(pass string, templateId string) (*model.Account, string, [
 	outbounds := make([]map[string]interface{}, 0)
 	proxyTags := make([]string, 0)
 	for _, item := range nodes {
+		if !clientcompat.Includes(item.ClientTypes, constant.ClientSingBox) {
+			continue
+		}
 		outbound, err := buildSingBoxOutbound(item, pass, *account.Username)
 		if err != nil {
 			return nil, "", []byte{}, err
@@ -368,7 +371,7 @@ func SubscribeV2Ray(pass string) (*model.Account, string, []byte, error) {
 
 	urls := make([]string, 0, len(nodes))
 	for _, node := range nodes {
-		if !clientcompat.SupportsV2Ray(node.NodeTypeId) {
+		if !clientcompat.Includes(node.ClientTypes, constant.ClientV2Ray) {
 			continue
 		}
 		nodeUrl, _, err := NodeURL(account.Id, account.Username, node.Id)
