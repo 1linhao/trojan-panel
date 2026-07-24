@@ -875,19 +875,39 @@ func nodeURLForClient(accountId *uint, username *string, id *uint, client string
 		if err != nil {
 			return "", 0, errors.New(constant.NodeURLError)
 		}
-		server, clientQuery := clientcompat.Hysteria2ShareServer(
-			*node.Domain,
-			*node.Port,
-			normalizedHysteria2PortHopping(nodeHysteria2.PortHopping),
-			client,
-		)
+		if client == constant.ClientV2Ray {
+			hopInterval := ""
+			if nodeHysteria2.HopInterval != nil && *nodeHysteria2.HopInterval > 0 {
+				hopInterval = fmt.Sprintf("%d", *nodeHysteria2.HopInterval)
+			}
+			nodeURL, err := clientcompat.V2RayNHysteria2URI(clientcompat.V2RayNHysteria2Config{
+				Remarks:        *node.Name,
+				Address:        *node.Domain,
+				Port:           *node.Port,
+				Password:       password,
+				SNI:            stringValue(nodeHysteria2.ServerName),
+				AllowInsecure:  uintValue(nodeHysteria2.Insecure) == 1,
+				SalamanderPass: stringValue(nodeHysteria2.ObfsPassword),
+				UpMbps:         *nodeHysteria2.UpMbps,
+				DownMbps:       *nodeHysteria2.DownMbps,
+				Ports:          normalizedHysteria2PortHopping(nodeHysteria2.PortHopping),
+				HopInterval:    hopInterval,
+			})
+			if err != nil {
+				return "", 0, errors.New(constant.NodeURLError)
+			}
+			return nodeURL, *nodeType.Id, nil
+		}
+		server := fmt.Sprintf("%s:%d", *node.Domain, *node.Port)
+		if portHopping := normalizedHysteria2PortHopping(nodeHysteria2.PortHopping); portHopping != "" {
+			server = fmt.Sprintf("%s:%s", *node.Domain, portHopping)
+		}
 		headBuilder.WriteString(fmt.Sprintf("hysteria2://%s@%s?insecure=%d&upmbps=%d&downmbps=%d",
 			password,
 			server,
 			*nodeHysteria2.Insecure,
 			*nodeHysteria2.UpMbps,
 			*nodeHysteria2.DownMbps))
-		headBuilder.WriteString(clientQuery)
 		if nodeHysteria2.ObfsPassword != nil && *nodeHysteria2.ObfsPassword != "" {
 			headBuilder.WriteString(fmt.Sprintf("&obfs=salamander&obfs-password=%s", *nodeHysteria2.ObfsPassword))
 		}
