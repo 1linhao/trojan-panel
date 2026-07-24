@@ -714,7 +714,10 @@ func NodeQRCode(accountId *uint, username *string, id *uint) ([]byte, error) {
 // trojan-go: https://p4gefau1t.github.io/trojan-go/developer/url/
 // hysteria:https://github.com/HyNetwork/hysteria/wiki/URI-Scheme
 func NodeURL(accountId *uint, username *string, id *uint) (string, uint, error) {
+	return nodeURLForClient(accountId, username, id, "")
+}
 
+func nodeURLForClient(accountId *uint, username *string, id *uint, client string) (string, uint, error) {
 	node, err := dao.SelectNodeById(id)
 	if err != nil {
 		return "", 0, errors.New(constant.NodeURLError)
@@ -872,16 +875,19 @@ func NodeURL(accountId *uint, username *string, id *uint) (string, uint, error) 
 		if err != nil {
 			return "", 0, errors.New(constant.NodeURLError)
 		}
-		server := fmt.Sprintf("%s:%d", *node.Domain, *node.Port)
-		if portHopping := normalizedHysteria2PortHopping(nodeHysteria2.PortHopping); portHopping != "" {
-			server = fmt.Sprintf("%s:%s", *node.Domain, portHopping)
-		}
+		server, clientQuery := clientcompat.Hysteria2ShareServer(
+			*node.Domain,
+			*node.Port,
+			normalizedHysteria2PortHopping(nodeHysteria2.PortHopping),
+			client,
+		)
 		headBuilder.WriteString(fmt.Sprintf("hysteria2://%s@%s?insecure=%d&upmbps=%d&downmbps=%d",
 			password,
 			server,
 			*nodeHysteria2.Insecure,
 			*nodeHysteria2.UpMbps,
 			*nodeHysteria2.DownMbps))
+		headBuilder.WriteString(clientQuery)
 		if nodeHysteria2.ObfsPassword != nil && *nodeHysteria2.ObfsPassword != "" {
 			headBuilder.WriteString(fmt.Sprintf("&obfs=salamander&obfs-password=%s", *nodeHysteria2.ObfsPassword))
 		}

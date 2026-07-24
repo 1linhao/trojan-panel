@@ -374,7 +374,7 @@ func SubscribeV2Ray(pass string) (*model.Account, string, []byte, error) {
 		if !clientcompat.Includes(node.ClientTypes, constant.ClientV2Ray) {
 			continue
 		}
-		nodeUrl, _, err := NodeURL(account.Id, account.Username, node.Id)
+		nodeUrl, _, err := nodeURLForClient(account.Id, account.Username, node.Id, constant.ClientV2Ray)
 		if err != nil {
 			return nil, "", nil, err
 		}
