@@ -14,7 +14,11 @@ import (
 	"trojan-panel/model"
 )
 
-const kernelReleaseCacheTTL = 24 * time.Hour
+const (
+	kernelReleaseCacheTTL     = 24 * time.Hour
+	githubReleasePageSize     = 30
+	githubReleaseResponseSize = 8 << 20
+)
 
 type KernelRelease struct {
 	Version     string    `json:"version"`
@@ -93,7 +97,11 @@ func fetchKernelReleases(ctx context.Context, kernel, channel string, cache *mod
 	} else if kernel != "xray" {
 		return nil, "", false, errors.New("unsupported managed kernel")
 	}
-	endpoint := fmt.Sprintf("https://api.github.com/repos/%s/releases?per_page=100", repository)
+	endpoint := fmt.Sprintf(
+		"https://api.github.com/repos/%s/releases?per_page=%d",
+		repository,
+		githubReleasePageSize,
+	)
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, "", false, err
@@ -116,7 +124,7 @@ func fetchKernelReleases(ctx context.Context, kernel, channel string, cache *mod
 		return nil, "", false, fmt.Errorf("GitHub releases failed: %s: %s", response.Status, string(body))
 	}
 	var releases []githubRelease
-	if err = json.NewDecoder(io.LimitReader(response.Body, 4<<20)).Decode(&releases); err != nil {
+	if err = json.NewDecoder(io.LimitReader(response.Body, githubReleaseResponseSize)).Decode(&releases); err != nil {
 		return nil, "", false, err
 	}
 	return &KernelReleaseCatalog{

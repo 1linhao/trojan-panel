@@ -2,6 +2,15 @@ package service
 
 import "testing"
 
+func TestGitHubReleaseResponseBoundsCoverBothChannels(t *testing.T) {
+	if githubReleasePageSize < 20 {
+		t.Fatalf("release page must leave room for both channels, got %d", githubReleasePageSize)
+	}
+	if githubReleaseResponseSize < 8<<20 {
+		t.Fatalf("release response limit is too small: %d", githubReleaseResponseSize)
+	}
+}
+
 func TestFilterKernelReleasesStrictlyUsesPrereleaseFlag(t *testing.T) {
 	releases := []githubRelease{
 		{TagName: "v1.0.0", Prerelease: false},
