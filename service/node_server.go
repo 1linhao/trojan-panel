@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"mime/multipart"
+	"strings"
 	"sync"
 	"trojan-panel/core"
 	"trojan-panel/dao"
@@ -39,17 +40,20 @@ func SelectNodeServerPage(queryName *string, queryIp *string, pageNum *uint, pag
 	nodeServerVos := make([]vo.NodeServerVo, 0)
 	for _, item := range *nodeServerPage {
 		nodeServerVo := vo.NodeServerVo{
-			Id:         *item.Id,
-			Name:       *item.Name,
-			Ip:         *item.Ip,
-			GrpcPort:   *item.GrpcPort,
-			CreateTime: *item.CreateTime,
+			Id:                *item.Id,
+			Name:              *item.Name,
+			Ip:                *item.Ip,
+			GrpcPort:          *item.GrpcPort,
+			GrpcTLSMode:       *item.GrpcTLSMode,
+			GrpcTLSServerName: *item.GrpcTLSServerName,
+			CreateTime:        *item.CreateTime,
 		}
 		nodeServerVos = append(nodeServerVos, nodeServerVo)
 	}
 
 	account := GetCurrentAccount(c)
 	if util.IsAdmin(account.Roles) {
+		showKernelInventory := util.IsSysAdmin(account.Roles)
 		token := util.GetToken(c)
 		var nodeMap sync.Map
 		var wg sync.WaitGroup
@@ -67,12 +71,36 @@ func SelectNodeServerPage(queryName *string, queryIp *string, pageNum *uint, pag
 				} else {
 					var nodeServerState int
 					var trojanPanelCoreVersion string
-					stateVo, err := core.GetNodeServerState(token, ip, grpcPort)
+					stateVo, err := core.GetNodeServerState(token, ip, grpcPort, core.NodeTransport{
+						Mode:       nodeServerVos[indexI].GrpcTLSMode,
+						ServerName: nodeServerVos[indexI].GrpcTLSServerName,
+					})
 					if err != nil {
 						nodeServerState = 0
 					} else {
 						nodeServerState = 1
 						trojanPanelCoreVersion = stateVo.GetVersion()
+						if showKernelInventory {
+							inventory, inventoryErr := core.GetKernelInventory(token, ip, grpcPort, core.NodeTransport{
+								Mode:       nodeServerVos[indexI].GrpcTLSMode,
+								ServerName: nodeServerVos[indexI].GrpcTLSServerName,
+							})
+							if inventoryErr == nil {
+								parts := make([]string, 0, len(inventory.Kernels))
+								for _, managed := range inventory.Kernels {
+									name := "Xray"
+									if managed.Kernel == core.ManagedKernel_MANAGED_KERNEL_HYSTERIA2 {
+										name = "Hysteria2"
+									}
+									version := managed.CurrentVersion
+									if version == "" {
+										version = "-"
+									}
+									parts = append(parts, name+" "+version)
+								}
+								nodeServerVos[indexI].KernelSummary = strings.Join(parts, " / ")
+							}
+						}
 					}
 					nodeServerVos[indexI].Status = nodeServerState
 					nodeServerVos[indexI].TrojanPanelCoreVersion = trojanPanelCoreVersion
@@ -125,10 +153,11 @@ func UpdateNodeServerById(dto *dto.NodeServerUpdateDto) error {
 	}
 
 	nodeServer := model.NodeServer{
-		Id:       dto.Id,
-		Ip:       dto.Ip,
-		Name:     dto.Name,
-		GrpcPort: dto.GrpcPort,
+		Id:                dto.Id,
+		Ip:                dto.Ip,
+		Name:              dto.Name,
+		GrpcPort:          dto.GrpcPort,
+		GrpcTLSServerName: dto.GrpcTLSServerName,
 	}
 	return dao.UpdateNodeServerById(&nodeServer)
 }
@@ -163,7 +192,7 @@ func GetNodeServerInfo(token string, nodeServerId *uint) (*core.NodeServerInfoVo
 	if err != nil {
 		return nil, err
 	}
-	nodeServerInfoVo, err := core.GetNodeServerInfo(token, *nodeServer.Ip, *nodeServer.GrpcPort)
+	nodeServerInfoVo, err := core.GetNodeServerInfo(token, *nodeServer.Ip, *nodeServer.GrpcPort, nodeTransport(nodeServer))
 	if err != nil {
 		return nil, err
 	}

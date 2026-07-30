@@ -8,6 +8,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
 	"trojan-panel/model/constant"
 	"trojan-panel/util"
 )
@@ -25,6 +26,9 @@ var (
 	redisMaxActive string
 	redisWait      string
 	serverPort     string
+	grpcClientCert string
+	grpcClientKey  string
+	grpcClientCA   string
 	version        bool
 )
 
@@ -41,12 +45,21 @@ func init() {
 	flag.StringVar(&redisMaxActive, "redisMaxActive", strconv.FormatInt(int64(runtime.NumCPU()*2+2), 10), "redis maximum number of connections")
 	flag.StringVar(&redisWait, "redisWait", "true", "does Redis wait")
 	flag.StringVar(&serverPort, "serverPort", "8081", "service port")
+	flag.StringVar(&grpcClientCert, "grpcClientCert", os.Getenv("GRPC_CLIENT_CERT_PATH"), "gRPC mTLS client certificate")
+	flag.StringVar(&grpcClientKey, "grpcClientKey", os.Getenv("GRPC_CLIENT_KEY_PATH"), "gRPC mTLS client private key")
+	flag.StringVar(&grpcClientCA, "grpcClientCA", os.Getenv("GRPC_SERVER_CA_PATH"), "gRPC server CA bundle")
 	flag.BoolVar(&version, "version", false, "print version info")
 	flag.Usage = usage
-	flag.Parse()
+	isTest := strings.HasSuffix(os.Args[0], ".test")
+	if !isTest {
+		flag.Parse()
+	}
 	if version {
 		_, _ = fmt.Fprint(os.Stdout, constant.TrojanPanelVersion)
 		os.Exit(0)
+	}
+	if isTest {
+		return
 	}
 
 	logPath := constant.LogPath
@@ -121,7 +134,7 @@ func init() {
 
 	configFilePath := constant.ConfigFilePath
 	if !util.Exists(configFilePath) {
-		file, err := os.Create(configFilePath)
+		file, err := os.OpenFile(configFilePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 		if err != nil {
 			logrus.Errorf("create file config.ini err: %v", err)
 			panic(err)
@@ -150,8 +163,12 @@ max_active=%s
 wait=%s
 [server]
 port=%s
+[grpc]
+client_cert_path=%s
+client_key_path=%s
+server_ca_path=%s
 `, host, user, password, port, redisHost, redisPort, redisPassword, redisDb,
-			redisMaxIdle, redisMaxActive, redisWait, serverPort))
+			redisMaxIdle, redisMaxActive, redisWait, serverPort, grpcClientCert, grpcClientKey, grpcClientCA))
 		if err != nil {
 			logrus.Errorf("config.ini file write err: %v", err)
 			panic(err)
@@ -316,6 +333,7 @@ type AppConfig struct {
 	LogConfig    `ini:"log"`
 	RedisConfig  `ini:"redis"`
 	ServerConfig `ini:"server"`
+	GrpcConfig   `ini:"grpc"`
 }
 
 type MySQLConfig struct {
@@ -345,4 +363,10 @@ type RedisConfig struct {
 
 type ServerConfig struct {
 	Port int `ini:"port"`
+}
+
+type GrpcConfig struct {
+	ClientCertPath string `ini:"client_cert_path"`
+	ClientKeyPath  string `ini:"client_key_path"`
+	ServerCAPath   string `ini:"server_ca_path"`
 }

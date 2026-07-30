@@ -18,5 +18,8 @@ func InitCron() {
 	_, _ = c.AddFunc("@every 1h", service.CronTrafficRank)
 	// 每月重设除管理员之外的用户下载和上传流量
 	_, _ = c.AddFunc("@monthly", service.CronResetDownloadAndUploadMonth)
+	// Daily audit retention only; no automatic kernel upgrades are scheduled.
+	_, _ = c.AddFunc("0 20 3 * * *", service.CleanupKernelUpgradeAudit)
+	service.RecoverKernelTasks()
 	c.Start()
 }

@@ -62,6 +62,92 @@ func InitMySQL() {
 		logrus.Errorf("database migration err: %v", err)
 		panic(err)
 	}
+	if err = migrateKernelUpgradeSchema(); err != nil {
+		logrus.Errorf("kernel upgrade database migration err: %v", err)
+		panic(err)
+	}
+}
+
+func migrateKernelUpgradeSchema() error {
+	migrations := []string{
+		"ALTER TABLE `node_server` ADD COLUMN `grpc_tls_mode` varchar(16) NOT NULL DEFAULT 'legacy' COMMENT 'legacy/mtls' AFTER `grpc_port`",
+		"ALTER TABLE `node_server` ADD COLUMN `grpc_tls_server_name` varchar(253) NOT NULL DEFAULT '' COMMENT 'gRPC TLS certificate name' AFTER `grpc_tls_mode`",
+		`CREATE TABLE IF NOT EXISTS kernel_release_cache (
+			kernel_name varchar(32) NOT NULL,
+			channel_name varchar(16) NOT NULL,
+			payload longtext NOT NULL,
+			etag varchar(255) NOT NULL DEFAULT '',
+			fetched_at datetime NOT NULL,
+			error_message varchar(1024) NOT NULL DEFAULT '',
+			PRIMARY KEY (kernel_name, channel_name)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+		`CREATE TABLE IF NOT EXISTS kernel_upgrade_task (
+			id bigint unsigned NOT NULL AUTO_INCREMENT,
+			operator_id bigint unsigned NOT NULL,
+			operator_name varchar(64) NOT NULL,
+			canary_node_id bigint unsigned NOT NULL DEFAULT 0,
+			status varchar(16) NOT NULL DEFAULT 'queued',
+			create_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			update_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY (id),
+			KEY idx_kernel_task_created (create_time)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+		`CREATE TABLE IF NOT EXISTS kernel_upgrade_task_item (
+			id bigint unsigned NOT NULL AUTO_INCREMENT,
+			task_id bigint unsigned NOT NULL,
+			node_server_id bigint unsigned NOT NULL,
+			node_server_name varchar(64) NOT NULL,
+			kernel_name varchar(32) NOT NULL,
+			from_version varchar(64) NOT NULL DEFAULT '',
+			target_version varchar(64) NOT NULL,
+			channel_name varchar(16) NOT NULL,
+			action_name varchar(16) NOT NULL DEFAULT 'install',
+			sha256 char(64) NOT NULL DEFAULT '',
+			stage varchar(32) NOT NULL DEFAULT 'queued',
+			result varchar(16) NOT NULL DEFAULT '',
+			error_message varchar(2048) NOT NULL DEFAULT '',
+			rollback_result varchar(32) NOT NULL DEFAULT '',
+			core_operation_id varchar(64) NOT NULL DEFAULT '',
+			idempotency_key varchar(128) NOT NULL,
+			attempt int unsigned NOT NULL DEFAULT 1,
+			create_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			update_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY (id),
+			UNIQUE KEY uk_kernel_item_idempotency (idempotency_key),
+			KEY idx_kernel_item_task (task_id),
+			KEY idx_kernel_item_node_stage (node_server_id, stage)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+		"ALTER TABLE `kernel_upgrade_task_item` ADD COLUMN `action_name` varchar(16) NOT NULL DEFAULT 'install' AFTER `channel_name`",
+	}
+	for _, migration := range migrations {
+		if _, err := db.Exec(migration); err != nil {
+			if strings.Contains(err.Error(), "Duplicate column name") {
+				continue
+			}
+			return err
+		}
+	}
+	paths := map[string]string{
+		"/api/kernel/releases":       "GET",
+		"/api/kernel/inventory":      "GET",
+		"/api/kernel/createTask":     "POST",
+		"/api/kernel/selectTaskPage": "GET",
+		"/api/kernel/selectTaskById": "GET",
+		"/api/kernel/retryTask":      "POST",
+		"/api/kernel/probeMTLS":      "POST",
+	}
+	for path, method := range paths {
+		var count int
+		if err := db.QueryRow("SELECT COUNT(1) FROM casbin_rule WHERE p_type='p' AND v0='sysadmin' AND v1=? AND v2=?", path, method).Scan(&count); err != nil {
+			return err
+		}
+		if count == 0 {
+			if _, err := db.Exec("INSERT INTO casbin_rule (p_type,v0,v1,v2,v3,v4,v5) VALUES ('p','sysadmin',?,?,'','','')", path, method); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func migrateClientExportPermissions() error {

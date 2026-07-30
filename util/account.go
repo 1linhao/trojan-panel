@@ -32,7 +32,16 @@ func ToByte(b int) int {
 
 func IsAdmin(roleNames []string) bool {
 	for _, item := range roleNames {
-		if item == "admin" {
+		if item == "sysadmin" || item == "admin" {
+			return true
+		}
+	}
+	return false
+}
+
+func IsSysAdmin(roleNames []string) bool {
+	for _, item := range roleNames {
+		if item == "sysadmin" {
 			return true
 		}
 	}

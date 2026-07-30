@@ -14,7 +14,7 @@ func SelectNodeTypeList() ([]vo.NodeTypeVo, error) {
 	var nodeTypes []model.NodeType
 
 	buildSelect, values, err := builder.NamedQuery(
-		"select id,`name` from node_type order by create_time desc", nil)
+		"select id,`name` from node_type where id not in (2,3) order by create_time desc", nil)
 	if err != nil {
 		logrus.Errorln(err.Error())
 		return nil, errors.New(constant.SysError)

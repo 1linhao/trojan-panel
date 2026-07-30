@@ -25,11 +25,13 @@ func SelectNodeServerById(c *gin.Context) {
 		return
 	}
 	nodeServerOneVo := vo.NodeServerOneVo{
-		Id:         *nodeServer.Id,
-		Name:       *nodeServer.Name,
-		Ip:         *nodeServer.Ip,
-		GrpcPort:   *nodeServer.GrpcPort,
-		CreateTime: *nodeServer.CreateTime,
+		Id:                *nodeServer.Id,
+		Name:              *nodeServer.Name,
+		Ip:                *nodeServer.Ip,
+		GrpcPort:          *nodeServer.GrpcPort,
+		GrpcTLSMode:       *nodeServer.GrpcTLSMode,
+		GrpcTLSServerName: *nodeServer.GrpcTLSServerName,
+		CreateTime:        *nodeServer.CreateTime,
 	}
 	vo.Success(nodeServerOneVo, c)
 }
@@ -42,9 +44,10 @@ func CreateNodeServer(c *gin.Context) {
 		return
 	}
 	nodeServer := model.NodeServer{
-		Name:     nodeServerCreateDto.Name,
-		Ip:       nodeServerCreateDto.Ip,
-		GrpcPort: nodeServerCreateDto.GrpcPort,
+		Name:              nodeServerCreateDto.Name,
+		Ip:                nodeServerCreateDto.Ip,
+		GrpcPort:          nodeServerCreateDto.GrpcPort,
+		GrpcTLSServerName: nodeServerCreateDto.GrpcTLSServerName,
 	}
 	if err := service.CreateNodeServer(&nodeServer); err != nil {
 		vo.Fail(err.Error(), c)

@@ -13,7 +13,7 @@ import (
 
 func SelectNodeServer(where map[string]interface{}) (*model.NodeServer, error) {
 	var nodeServer model.NodeServer
-	selectFields := []string{"id", "ip", "grpc_port", "`name`", "create_time"}
+	selectFields := []string{"id", "ip", "grpc_port", "grpc_tls_mode", "grpc_tls_server_name", "`name`", "create_time"}
 	buildSelect, values, err := builder.BuildSelect("node_server", where, selectFields)
 	if err != nil {
 		logrus.Errorln(err.Error())
@@ -37,10 +37,10 @@ func SelectNodeServer(where map[string]interface{}) (*model.NodeServer, error) {
 
 func CreateNodeServer(nodeServer *model.NodeServer) error {
 	nodeServerEntity := map[string]interface{}{
-		"ip":   *nodeServer.Ip,
-		"name": *nodeServer.Name,
+		"ip": *nodeServer.Ip, "name": *nodeServer.Name,
+		"grpc_tls_mode": "mtls", "grpc_tls_server_name": *nodeServer.GrpcTLSServerName,
 	}
-	if nodeServer.GrpcPort != nil || *nodeServer.GrpcPort != 0 {
+	if nodeServer.GrpcPort != nil && *nodeServer.GrpcPort != 0 {
 		nodeServerEntity["grpc_port"] = *nodeServer.GrpcPort
 	}
 
@@ -93,7 +93,7 @@ func SelectNodeServerPage(queryName *string, queryIp *string, pageNum *uint, pag
 	if queryIp != nil && *queryIp != "" {
 		where["ip like"] = fmt.Sprintf("%%%s%%", *queryIp)
 	}
-	selectFields := []string{"id", "`ip`", "grpc_port", "name", "create_time"}
+	selectFields := []string{"id", "`ip`", "grpc_port", "grpc_tls_mode", "grpc_tls_server_name", "name", "create_time"}
 	selectSQL, values, err := builder.BuildSelect("node_server", where, selectFields)
 	if err != nil {
 		logrus.Errorln(err.Error())
@@ -139,6 +139,9 @@ func UpdateNodeServerById(nodeServer *model.NodeServer) error {
 	}
 	if nodeServer.GrpcPort != nil && *nodeServer.GrpcPort != 0 {
 		update["grpc_port"] = *nodeServer.GrpcPort
+	}
+	if nodeServer.GrpcTLSServerName != nil {
+		update["grpc_tls_server_name"] = *nodeServer.GrpcTLSServerName
 	}
 	if len(update) > 0 {
 		buildUpdate, values, err := builder.BuildUpdate("node_server", where, update)
@@ -194,7 +197,7 @@ func SelectNodeServerList(ip *string, name *string) ([]model.NodeServer, error) 
 	if name != nil && *name != "" {
 		where["name like"] = fmt.Sprintf("%%%s%%", *name)
 	}
-	selectFields := []string{"id", "`ip`", "name", "create_time"}
+	selectFields := []string{"id", "`ip`", "name", "grpc_tls_mode", "grpc_tls_server_name", "create_time"}
 	selectSQL, values, err := builder.BuildSelect("node_server", where, selectFields)
 	if err != nil {
 		logrus.Errorln(err.Error())
@@ -215,9 +218,28 @@ func SelectNodeServerList(ip *string, name *string) ([]model.NodeServer, error) 
 	return nodeServers, nil
 }
 
+// SelectNodeServersForControl returns each server once with the transport
+// settings required for panel-to-core control calls.
+func SelectNodeServersForControl() ([]model.NodeServer, error) {
+	var nodeServers []model.NodeServer
+	query := `SELECT DISTINCT ns.id, ns.ip, ns.grpc_port, ns.grpc_tls_mode, ns.grpc_tls_server_name
+		FROM node_server ns INNER JOIN node n ON n.node_server_id = ns.id`
+	rows, err := db.Query(query)
+	if err != nil {
+		logrus.Errorln(err.Error())
+		return nil, errors.New(constant.SysError)
+	}
+	defer rows.Close()
+	if err = scanner.Scan(rows, &nodeServers); err != nil {
+		logrus.Errorln(err.Error())
+		return nil, errors.New(constant.SysError)
+	}
+	return nodeServers, nil
+}
+
 func SelectNodeServerAll() ([]vo.NodeServerExportVo, error) {
 	var nodeServerExportVo []vo.NodeServerExportVo
-	selectFields := []string{"ip", "name", "grpc_port", "create_time"}
+	selectFields := []string{"ip", "name", "grpc_port", "grpc_tls_mode", "grpc_tls_server_name", "create_time"}
 	selectSQL, values, err := builder.BuildSelect("node_server", nil, selectFields)
 	if err != nil {
 		logrus.Errorln(err.Error())
@@ -237,8 +259,26 @@ func SelectNodeServerAll() ([]vo.NodeServerExportVo, error) {
 	return nodeServerExportVo, nil
 }
 
+func EnableNodeServerMTLS(id uint, serverName string) error {
+	result, err := db.Exec("UPDATE node_server SET grpc_tls_mode='mtls', grpc_tls_server_name=? WHERE id=?", serverName, id)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected != 1 {
+		return errors.New(constant.NodeNotExist)
+	}
+	return nil
+}
+
 // CreateOrUpdateNodeServer 插入数据时，如果数据已经存在，则更新数据；如果数据不存在，则插入新数据
 func CreateOrUpdateNodeServer(nodeServerModule model.NodeServer, cover uint) error {
+	if nodeServerModule.GrpcTLSServerName == nil || *nodeServerModule.GrpcTLSServerName == "" {
+		return errors.New("imported node servers must include grpcTlsServerName for mTLS")
+	}
 	nodeServer, err := SelectNodeServer(map[string]interface{}{"ip": *nodeServerModule.Ip})
 	if err != nil && err.Error() != constant.NodeNotExist {
 		logrus.Errorln(err.Error())
@@ -258,6 +298,7 @@ func CreateOrUpdateNodeServer(nodeServerModule model.NodeServer, cover uint) err
 		if nodeServerModule.GrpcPort != nil && *nodeServerModule.GrpcPort != 0 {
 			accountUpdate["grpc_port"] = *nodeServerModule.GrpcPort
 		}
+		accountUpdate["grpc_tls_server_name"] = *nodeServerModule.GrpcTLSServerName
 		if len(accountUpdate) > 0 {
 			buildInsert, values, err := builder.BuildUpdate("node_server", accountWhere, accountUpdate)
 			if err != nil {
@@ -284,6 +325,8 @@ func CreateOrUpdateNodeServer(nodeServerModule model.NodeServer, cover uint) err
 				if nodeServerModule.GrpcPort != nil && *nodeServerModule.GrpcPort != 0 {
 					accountCreate["grpc_port"] = *nodeServerModule.GrpcPort
 				}
+				accountCreate["grpc_tls_mode"] = "mtls"
+				accountCreate["grpc_tls_server_name"] = *nodeServerModule.GrpcTLSServerName
 				if len(accountCreate) > 0 {
 					data = append(data, accountCreate)
 					buildInsert, values, err := builder.BuildInsert("node_server", data)

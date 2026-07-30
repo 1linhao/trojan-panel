@@ -10,6 +10,8 @@ type NodeBo struct {
 	Name               string    `json:"name"`
 	NodeServerIp       string    `json:"nodeServerIp"`
 	NodeServerGrpcPort uint      `json:"nodeServerGrpcPort"`
+	GrpcTLSMode        string    `json:"grpcTlsMode"`
+	GrpcTLSServerName  string    `json:"grpcTlsServerName"`
 	Domain             string    `json:"domain"`
 	Port               uint      `json:"port"`
 	Priority           int       `json:"priority"`

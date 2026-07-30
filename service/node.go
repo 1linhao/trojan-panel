@@ -28,6 +28,9 @@ func SelectNodeById(id *uint) (*vo.NodeOneVo, error) {
 	if err != nil {
 		return nil, err
 	}
+	if isRetiredNodeType(*node.NodeTypeId) {
+		return nil, errors.New("retired nodes are not available")
+	}
 	if node != nil {
 		nodeOneVo := vo.NodeOneVo{
 			Id:              *node.Id,
@@ -136,6 +139,9 @@ func SelectNodeInfo(id *uint, c *gin.Context) (*vo.NodeOneVo, error) {
 }
 
 func CreateNode(token string, nodeCreateDto dto.NodeCreateDto) error {
+	if nodeCreateDto.NodeTypeId != nil && isRetiredNodeType(*nodeCreateDto.NodeTypeId) {
+		return errors.New("Trojan-Go and Hysteria v1 are retired")
+	}
 	if err := clientcompat.ValidateNode(nodeCreateDto.NodeTypeId, nodeCreateDto.Clients); err != nil {
 		return err
 	}
@@ -174,6 +180,7 @@ func CreateNode(token string, nodeCreateDto dto.NodeCreateDto) error {
 	if err != nil {
 		return err
 	}
+	defer redis.RsUnLock(mutex)
 	// Grpc添加节点
 	GrpcAddNode(token, *nodeServer.Ip, *nodeServer.GrpcPort, &core.NodeAddDto{
 		NodeTypeId: uint64(*nodeCreateDto.NodeTypeId),
@@ -190,25 +197,11 @@ func CreateNode(token string, nodeCreateDto dto.NodeCreateDto) error {
 		XrayTag:            stringValue(nodeCreateDto.XrayTag),
 		XraySniffing:       stringValue(nodeCreateDto.XraySniffing),
 		XrayAllocate:       stringValue(nodeCreateDto.XrayAllocate),
-		// Trojan Go
-		TrojanGoSni:             stringValue(nodeCreateDto.TrojanGoSni),
-		TrojanGoMuxEnable:       uint64(*nodeCreateDto.TrojanGoMuxEnable),
-		TrojanGoWebsocketEnable: uint64(*nodeCreateDto.TrojanGoWebsocketEnable),
-		TrojanGoWebsocketPath:   stringValue(nodeCreateDto.TrojanGoWebsocketPath),
-		TrojanGoWebsocketHost:   stringValue(nodeCreateDto.TrojanGoWebsocketHost),
-		TrojanGoSSEnable:        uint64(*nodeCreateDto.TrojanGoSsEnable),
-		TrojanGoSSMethod:        stringValue(nodeCreateDto.TrojanGoSsMethod),
-		TrojanGoSSPassword:      stringValue(nodeCreateDto.TrojanGoSsPassword),
-		// Hysteria
-		HysteriaProtocol: stringValue(nodeCreateDto.HysteriaProtocol),
-		HysteriaObfs:     stringValue(nodeCreateDto.HysteriaObfs),
-		HysteriaUpMbps:   int64(*nodeCreateDto.HysteriaUpMbps),
-		HysteriaDownMbps: int64(*nodeCreateDto.HysteriaDownMbps),
 		// Hysteria2
 		Hysteria2ObfsPassword: stringValue(nodeCreateDto.Hysteria2ObfsPassword),
 		Hysteria2UpMbps:       int64(*nodeCreateDto.Hysteria2UpMbps),
 		Hysteria2DownMbps:     int64(*nodeCreateDto.Hysteria2DownMbps),
-	})
+	}, nodeTransport(nodeServer))
 	// 数据插入到数据库中
 	if *nodeCreateDto.NodeTypeId == constant.Xray {
 		nodeXray := model.NodeXray{
@@ -289,7 +282,6 @@ func CreateNode(token string, nodeCreateDto dto.NodeCreateDto) error {
 	if err = dao.CreateNode(&node); err != nil {
 		return err
 	}
-	redis.RsUnLock(mutex)
 	return nil
 }
 
@@ -299,7 +291,17 @@ func SelectNodePage(queryName *string, nodeServerId *uint, pageNum *uint, pageSi
 		return nil, err
 	}
 	nodeBos := make([]bo.NodeBo, 0)
+	nodeServerTransports := make(map[uint]core.NodeTransport)
 	for _, item := range *nodePage {
+		transport, ok := nodeServerTransports[*item.NodeServerId]
+		if !ok {
+			nodeServer, selectErr := dao.SelectNodeServer(map[string]interface{}{"id": *item.NodeServerId})
+			if selectErr != nil {
+				return nil, selectErr
+			}
+			transport = nodeTransport(nodeServer)
+			nodeServerTransports[*item.NodeServerId] = transport
+		}
 		nodeBo := bo.NodeBo{
 			Id:                 *item.Id,
 			NodeServerId:       *item.NodeServerId,
@@ -308,6 +310,8 @@ func SelectNodePage(queryName *string, nodeServerId *uint, pageNum *uint, pageSi
 			Name:               *item.Name,
 			NodeServerIp:       *item.NodeServerIp,
 			NodeServerGrpcPort: *item.NodeServerGrpcPort,
+			GrpcTLSMode:        transport.Mode,
+			GrpcTLSServerName:  transport.ServerName,
 			Domain:             *item.Domain,
 			Port:               *item.Port,
 			Priority:           *item.Priority,
@@ -337,7 +341,10 @@ func SelectNodePage(queryName *string, nodeServerId *uint, pageNum *uint, pageSi
 					nodeBos[indexI].Status = status.(int)
 				} else {
 					var nodeState int
-					nodeStateVo, err := core.GetNodeState(token, ip, grpcPort, nodeTypeId, port)
+					nodeStateVo, err := core.GetNodeState(token, ip, grpcPort, nodeTypeId, port, core.NodeTransport{
+						Mode:       nodeBos[indexI].GrpcTLSMode,
+						ServerName: nodeBos[indexI].GrpcTLSServerName,
+					})
 					if err != nil || nodeStateVo.GetStatus() == 0 {
 						nodeState = 0
 					} else {
@@ -389,11 +396,19 @@ func DeleteNodeById(token string, id *uint) error {
 	if err != nil {
 		return err
 	}
+	defer redis.RsUnLock(mutex)
 	node, err := dao.SelectNodeById(id)
 	if err != nil {
 		return err
 	}
-	GrpcRemoveNode(token, *node.NodeServerIp, *node.NodeServerGrpcPort, *node.Port, *node.NodeTypeId)
+	if isRetiredNodeType(*node.NodeTypeId) {
+		return errors.New("retired nodes cannot be deleted through the panel")
+	}
+	nodeServer, err := dao.SelectNodeServer(map[string]interface{}{"id": *node.NodeServerId})
+	if err != nil {
+		return err
+	}
+	GrpcRemoveNode(token, *node.NodeServerIp, *node.NodeServerGrpcPort, *node.Port, *node.NodeTypeId, nodeTransport(nodeServer))
 	if *node.NodeTypeId == constant.Xray {
 		if err := dao.DeleteNodeXrayById(node.NodeSubId); err != nil {
 			return err
@@ -414,11 +429,13 @@ func DeleteNodeById(token string, id *uint) error {
 	if err = dao.DeleteNodeById(id); err != nil {
 		return err
 	}
-	redis.RsUnLock(mutex)
 	return nil
 }
 
 func UpdateNodeById(token string, nodeUpdateDto *dto.NodeUpdateDto) error {
+	if nodeUpdateDto.NodeTypeId != nil && isRetiredNodeType(*nodeUpdateDto.NodeTypeId) {
+		return errors.New("Trojan-Go and Hysteria v1 are retired")
+	}
 	if err := clientcompat.ValidateNode(nodeUpdateDto.NodeTypeId, nodeUpdateDto.Clients); err != nil {
 		return err
 	}
@@ -460,13 +477,21 @@ func UpdateNodeById(token string, nodeUpdateDto *dto.NodeUpdateDto) error {
 	if err != nil {
 		return err
 	}
+	defer redis.RsUnLock(mutex)
 
 	nodeEntity, err := dao.SelectNodeById(nodeUpdateDto.Id)
 	if err != nil {
 		return err
 	}
+	if isRetiredNodeType(*nodeEntity.NodeTypeId) {
+		return errors.New("retired nodes cannot be edited")
+	}
+	oldNodeServer, err := dao.SelectNodeServer(map[string]interface{}{"id": *nodeEntity.NodeServerId})
+	if err != nil {
+		return err
+	}
 	// Grpc的操作
-	GrpcRemoveNode(token, *nodeEntity.NodeServerIp, *nodeEntity.NodeServerGrpcPort, *nodeEntity.Port, *nodeEntity.NodeTypeId)
+	GrpcRemoveNode(token, *nodeEntity.NodeServerIp, *nodeEntity.NodeServerGrpcPort, *nodeEntity.Port, *nodeEntity.NodeTypeId, nodeTransport(oldNodeServer))
 	GrpcAddNode(token, *nodeServer.Ip, *nodeServer.GrpcPort, &core.NodeAddDto{
 		NodeTypeId: uint64(*nodeUpdateDto.NodeTypeId),
 		Port:       uint64(*nodeUpdateDto.Port),
@@ -482,25 +507,11 @@ func UpdateNodeById(token string, nodeUpdateDto *dto.NodeUpdateDto) error {
 		XrayTag:            *nodeUpdateDto.XrayTag,
 		XraySniffing:       *nodeUpdateDto.XraySniffing,
 		XrayAllocate:       *nodeUpdateDto.XrayAllocate,
-		// Trojan Go
-		TrojanGoSni:             *nodeUpdateDto.TrojanGoSni,
-		TrojanGoMuxEnable:       uint64(*nodeUpdateDto.TrojanGoMuxEnable),
-		TrojanGoWebsocketEnable: uint64(*nodeUpdateDto.TrojanGoWebsocketEnable),
-		TrojanGoWebsocketPath:   *nodeUpdateDto.TrojanGoWebsocketPath,
-		TrojanGoWebsocketHost:   *nodeUpdateDto.TrojanGoWebsocketHost,
-		TrojanGoSSEnable:        uint64(*nodeUpdateDto.TrojanGoSsEnable),
-		TrojanGoSSMethod:        *nodeUpdateDto.TrojanGoSsMethod,
-		TrojanGoSSPassword:      *nodeUpdateDto.TrojanGoSsPassword,
-		// Hysteria
-		HysteriaProtocol: *nodeUpdateDto.HysteriaProtocol,
-		HysteriaObfs:     *nodeUpdateDto.HysteriaObfs,
-		HysteriaUpMbps:   int64(*nodeUpdateDto.HysteriaUpMbps),
-		HysteriaDownMbps: int64(*nodeUpdateDto.HysteriaDownMbps),
 		// Hysteria2
 		Hysteria2ObfsPassword: *nodeUpdateDto.Hysteria2ObfsPassword,
 		Hysteria2UpMbps:       int64(*nodeUpdateDto.Hysteria2UpMbps),
 		Hysteria2DownMbps:     int64(*nodeUpdateDto.Hysteria2DownMbps),
-	})
+	}, nodeTransport(nodeServer))
 
 	if *nodeUpdateDto.NodeTypeId == *nodeEntity.NodeTypeId {
 		// 没有修改节点类型的情况
@@ -688,7 +699,6 @@ func UpdateNodeById(token string, nodeUpdateDto *dto.NodeUpdateDto) error {
 			return err
 		}
 	}
-	redis.RsUnLock(mutex)
 	return nil
 }
 
@@ -711,8 +721,6 @@ func NodeQRCode(accountId *uint, username *string, id *uint) ([]byte, error) {
 
 // NodeURL
 // xray: https://github.com/XTLS/Xray-core/issues/91
-// trojan-go: https://p4gefau1t.github.io/trojan-go/developer/url/
-// hysteria:https://github.com/HyNetwork/hysteria/wiki/URI-Scheme
 func NodeURL(accountId *uint, username *string, id *uint) (string, uint, error) {
 	return nodeURLForClient(accountId, username, id, "")
 }
@@ -720,6 +728,9 @@ func NodeURL(accountId *uint, username *string, id *uint) (string, uint, error) 
 func nodeURLForClient(accountId *uint, username *string, id *uint, client string) (string, uint, error) {
 	node, err := dao.SelectNodeById(id)
 	if err != nil {
+		return "", 0, errors.New(constant.NodeURLError)
+	}
+	if isRetiredNodeType(*node.NodeTypeId) {
 		return "", 0, errors.New(constant.NodeURLError)
 	}
 
@@ -955,15 +966,19 @@ func nodeUintValue(value *uint, fallback uint) uint {
 	return *value
 }
 
-func GrpcAddNode(token string, ip string, grpcPort uint, nodeAddDto *core.NodeAddDto) {
-	_ = core.AddNode(token, ip, grpcPort, nodeAddDto)
+func isRetiredNodeType(nodeType uint) bool {
+	return nodeType == constant.TrojanGo || nodeType == constant.Hysteria
 }
 
-func GrpcRemoveNode(token string, ip string, grpcPort uint, port uint, nodeTypeId uint) {
+func GrpcAddNode(token string, ip string, grpcPort uint, nodeAddDto *core.NodeAddDto, transport ...core.NodeTransport) {
+	_ = core.AddNode(token, ip, grpcPort, nodeAddDto, transport...)
+}
+
+func GrpcRemoveNode(token string, ip string, grpcPort uint, port uint, nodeTypeId uint, transport ...core.NodeTransport) {
 	_ = core.RemoveNode(token, ip, grpcPort, &core.NodeRemoveDto{
 		NodeTypeId: uint64(nodeTypeId),
 		Port:       uint64(port),
-	})
+	}, transport...)
 }
 
 func NodeDefault() (vo.NodeDefaultVo, error) {

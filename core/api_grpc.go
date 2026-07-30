@@ -2,27 +2,49 @@ package core
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"github.com/avast/retry-go"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
+	"os"
 	"time"
 	"trojan-panel/model/constant"
 )
 
-func newGrpcInstance(token string, ip string, grpcPort uint, timeout time.Duration) (conn *grpc.ClientConn, ctx context.Context, clo func(), err error) {
+type NodeTransport struct {
+	Mode       string
+	ServerName string
+}
+
+func newGrpcInstance(token string, ip string, grpcPort uint, timeout time.Duration, transports ...NodeTransport) (conn *grpc.ClientConn, ctx context.Context, clo func(), err error) {
 	tokenParam := TokenValidateParam{
 		Token: token,
 	}
 
-	opts := []grpc.DialOption{
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithPerRPCCredentials(&tokenParam),
+	transport := NodeTransport{Mode: "legacy"}
+	if len(transports) > 0 {
+		transport = transports[0]
 	}
+	var transportCredentials credentials.TransportCredentials
+	switch transport.Mode {
+	case "mtls":
+		transportCredentials, err = clientTransportCredentials(transport.ServerName)
+		if err != nil {
+			return nil, nil, func() {}, err
+		}
+	case "", "legacy":
+		transportCredentials = insecure.NewCredentials()
+	default:
+		return nil, nil, func() {}, fmt.Errorf("unsupported gRPC transport mode %q", transport.Mode)
+	}
+	opts := []grpc.DialOption{grpc.WithTransportCredentials(transportCredentials), grpc.WithPerRPCCredentials(&tokenParam)}
 	conn, err = grpc.Dial(fmt.Sprintf("%s:%d", ip, grpcPort),
 		opts...)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -39,9 +61,35 @@ func newGrpcInstance(token string, ip string, grpcPort uint, timeout time.Durati
 	return
 }
 
-func AddNode(token string, ip string, grpcPort uint, nodeAddDto *NodeAddDto) error {
+func clientTransportCredentials(serverName string) (credentials.TransportCredentials, error) {
+	config := Config.GrpcConfig
+	if serverName == "" {
+		return nil, errors.New("mTLS server name is required")
+	}
+	certificate, err := tls.LoadX509KeyPair(config.ClientCertPath, config.ClientKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("load gRPC client certificate: %w", err)
+	}
+	var roots *x509.CertPool
+	if config.ServerCAPath != "" {
+		pem, readErr := os.ReadFile(config.ServerCAPath)
+		if readErr != nil {
+			return nil, readErr
+		}
+		roots = x509.NewCertPool()
+		if !roots.AppendCertsFromPEM(pem) {
+			return nil, errors.New("gRPC server CA contains no certificates")
+		}
+	}
+	return credentials.NewTLS(&tls.Config{
+		MinVersion: tls.VersionTLS12, ServerName: serverName,
+		Certificates: []tls.Certificate{certificate}, RootCAs: roots,
+	}), nil
+}
+
+func AddNode(token string, ip string, grpcPort uint, nodeAddDto *NodeAddDto, transports ...NodeTransport) error {
 	if err := retry.Do(func() error {
-		conn, ctx, clo, err := newGrpcInstance(token, ip, grpcPort, 4*time.Second)
+		conn, ctx, clo, err := newGrpcInstance(token, ip, grpcPort, 4*time.Second, transports...)
 		defer clo()
 		if err != nil {
 			return err
@@ -66,9 +114,9 @@ func AddNode(token string, ip string, grpcPort uint, nodeAddDto *NodeAddDto) err
 	return nil
 }
 
-func RemoveNode(token string, ip string, grpcPort uint, nodeRemoveDto *NodeRemoveDto) error {
+func RemoveNode(token string, ip string, grpcPort uint, nodeRemoveDto *NodeRemoveDto, transports ...NodeTransport) error {
 	if err := retry.Do(func() error {
-		conn, ctx, clo, err := newGrpcInstance(token, ip, grpcPort, 4*time.Second)
+		conn, ctx, clo, err := newGrpcInstance(token, ip, grpcPort, 4*time.Second, transports...)
 		defer clo()
 		if err != nil {
 			return err
@@ -93,9 +141,9 @@ func RemoveNode(token string, ip string, grpcPort uint, nodeRemoveDto *NodeRemov
 	return nil
 }
 
-func RemoveAccount(token string, ip string, grpcPort uint, accountRemoveDto *AccountRemoveDto) error {
+func RemoveAccount(token string, ip string, grpcPort uint, accountRemoveDto *AccountRemoveDto, transports ...NodeTransport) error {
 	if err := retry.Do(func() error {
-		conn, ctx, clo, err := newGrpcInstance(token, ip, grpcPort, 4*time.Second)
+		conn, ctx, clo, err := newGrpcInstance(token, ip, grpcPort, 4*time.Second, transports...)
 		defer clo()
 		if err != nil {
 			return err
@@ -121,8 +169,8 @@ func RemoveAccount(token string, ip string, grpcPort uint, accountRemoveDto *Acc
 }
 
 // GetNodeState 查询节点状态
-func GetNodeState(token string, ip string, grpcPort uint, nodeTypeId uint, port uint) (*NodeStateVo, error) {
-	conn, ctx, clo, err := newGrpcInstance(token, ip, grpcPort, 4*time.Second)
+func GetNodeState(token string, ip string, grpcPort uint, nodeTypeId uint, port uint, transports ...NodeTransport) (*NodeStateVo, error) {
+	conn, ctx, clo, err := newGrpcInstance(token, ip, grpcPort, 4*time.Second, transports...)
 	defer clo()
 	if err != nil {
 		return nil, err
@@ -150,8 +198,8 @@ func GetNodeState(token string, ip string, grpcPort uint, nodeTypeId uint, port 
 }
 
 // GetNodeServerState 查询服务器状态
-func GetNodeServerState(token string, ip string, grpcPort uint) (*NodeServerStateVo, error) {
-	conn, ctx, clo, err := newGrpcInstance(token, ip, grpcPort, 4*time.Second)
+func GetNodeServerState(token string, ip string, grpcPort uint, transports ...NodeTransport) (*NodeServerStateVo, error) {
+	conn, ctx, clo, err := newGrpcInstance(token, ip, grpcPort, 4*time.Second, transports...)
 	defer clo()
 	if err != nil {
 		return nil, err
@@ -175,8 +223,8 @@ func GetNodeServerState(token string, ip string, grpcPort uint) (*NodeServerStat
 	return nil, errors.New(constant.GrpcError)
 }
 
-func GetNodeServerInfo(token string, ip string, grpcPort uint) (*NodeServerInfoVo, error) {
-	conn, ctx, clo, err := newGrpcInstance(token, ip, grpcPort, 4*time.Second)
+func GetNodeServerInfo(token string, ip string, grpcPort uint, transports ...NodeTransport) (*NodeServerInfoVo, error) {
+	conn, ctx, clo, err := newGrpcInstance(token, ip, grpcPort, 4*time.Second, transports...)
 	defer clo()
 	if err != nil {
 		return nil, err
