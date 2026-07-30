@@ -22,6 +22,7 @@ func InitMySQL() {
 		New("trojan_panel_db", mySQLConfig.User, mySQLConfig.Password, mySQLConfig.Host).
 		Set(
 			manager.SetCharset("utf8mb4"),
+			manager.SetParseTime(true),
 			manager.SetAllowCleartextPasswords(true),
 			manager.SetInterpolateParams(true),
 			manager.SetTimeout(1*time.Second),
