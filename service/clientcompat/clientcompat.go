@@ -10,6 +10,7 @@ var supportedClients = []string{
 	constant.ClientSingBox,
 	constant.ClientClashMeta,
 	constant.ClientV2Ray,
+	constant.ClientShadowrocket,
 }
 
 func DefaultClients() []string {

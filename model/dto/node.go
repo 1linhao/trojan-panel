@@ -17,7 +17,7 @@ type NodeCreateDto struct {
 	Domain       *string   `json:"domain" form:"domain" validate:"required,ip|fqdn,min=4,max=64"`
 	Port         *uint     `json:"port" form:"port" validate:"required,validatePort"`
 	Priority     *int      `json:"priority" form:"priority" validate:"required,validateInt"`
-	Clients      *[]string `json:"clients" form:"clients" validate:"omitempty,dive,oneof=sing-box clash-meta v2ray"`
+	Clients      *[]string `json:"clients" form:"clients" validate:"omitempty,dive,oneof=sing-box clash-meta v2ray shadowrocket"`
 
 	XrayProtocol       *string `json:"xrayProtocol" form:"xrayProtocol" validate:"omitempty,min=0,max=32"`
 	XrayFlow           *string `json:"xrayFlow" form:"xrayFlow" validate:"omitempty,min=0,max=32"`
@@ -67,7 +67,7 @@ type NodeUpdateDto struct {
 	Domain       *string   `json:"domain" form:"domain" validate:"required,ip|fqdn,min=4,max=64"`
 	Port         *uint     `json:"port" form:"port" validate:"required,validatePort"`
 	Priority     *int      `json:"priority" form:"priority" validate:"required,validateInt"`
-	Clients      *[]string `json:"clients" form:"clients" validate:"omitempty,dive,oneof=sing-box clash-meta v2ray"`
+	Clients      *[]string `json:"clients" form:"clients" validate:"omitempty,dive,oneof=sing-box clash-meta v2ray shadowrocket"`
 
 	XrayProtocol       *string `json:"xrayProtocol" form:"xrayProtocol" validate:"omitempty,min=0,max=32"`
 	XrayFlow           *string `json:"xrayFlow" form:"xrayFlow" validate:"omitempty,min=0,max=32"`

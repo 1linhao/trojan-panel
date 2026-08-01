@@ -24,7 +24,7 @@ func ExportOptions(c *gin.Context) {
 }
 
 func ExportSubscribe(c *gin.Context) {
-	client := c.Query("client")
+	client := strings.ToLower(c.Query("client"))
 	templateId := c.Query("template")
 	if !validExportSelection(client, templateId) {
 		vo.Fail(constant.ValidateFailed, c)
@@ -43,9 +43,9 @@ func ExportSubscribe(c *gin.Context) {
 }
 
 func ExportQRCode(c *gin.Context) {
-	client := c.Query("client")
+	client := strings.ToLower(c.Query("client"))
 	templateId := c.Query("template")
-	if client != "v2ray" || !validExportSelection(client, templateId) {
+	if (client != "v2ray" && client != "shadowrocket") || !validExportSelection(client, templateId) {
 		vo.Fail(constant.ValidateFailed, c)
 		return
 	}
@@ -86,7 +86,7 @@ func Subscribe(c *gin.Context) {
 	}
 	pass := string(tokenDecode)
 
-	client := c.Query("client")
+	client := strings.ToLower(c.Query("client"))
 	templateId := c.Query("template")
 	if !validExportSelection(client, templateId) {
 		vo.Fail(constant.ValidateFailed, c)
@@ -105,14 +105,14 @@ func Subscribe(c *gin.Context) {
 		c.String(200, string(singBoxConfigJson))
 		return
 	}
-	if client == "v2ray" {
-		account, userInfo, v2rayConfig, err := service.SubscribeV2Ray(pass, c.GetHeader("User-Agent"))
+	if client == "v2ray" || client == "shadowrocket" {
+		account, userInfo, v2rayConfig, err := service.SubscribeURI(pass, c.GetHeader("User-Agent"), client)
 		if err != nil {
 			vo.Fail(err.Error(), c)
 			return
 		}
 		c.Header("vary", "User-Agent")
-		c.Header("content-disposition", fmt.Sprintf("attachment; filename=%s-v2ray.txt", *account.Username))
+		c.Header("content-disposition", fmt.Sprintf("attachment; filename=%s-%s.txt", *account.Username, client))
 		c.Header("content-type", "text/plain; charset=utf-8")
 		c.Header("profile-update-interval", "12")
 		c.Header("subscription-userinfo", userInfo)
@@ -174,7 +174,7 @@ func validExportSelection(client string, templateId string) bool {
 	switch strings.ToLower(client) {
 	case "sing-box":
 		return templateId == "tun" || templateId == "outbound"
-	case "clash-meta", "v2ray":
+	case "clash-meta", "v2ray", "shadowrocket":
 		return templateId == "default"
 	default:
 		return false

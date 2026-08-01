@@ -360,6 +360,12 @@ func SubscribeSingBox(pass string, templateId string) (*model.Account, string, [
 }
 
 func SubscribeV2Ray(pass string, userAgent string) (*model.Account, string, []byte, error) {
+	return SubscribeURI(pass, userAgent, constant.ClientV2Ray)
+}
+
+// SubscribeURI returns the standard base64 URI subscription used by V2Ray
+// clients and Shadowrocket while preserving each client's node visibility.
+func SubscribeURI(pass string, userAgent string, client string) (*model.Account, string, []byte, error) {
 	account, err := dao.SelectAccountClashSubscribe(pass)
 	if err != nil {
 		return nil, "", nil, err
@@ -372,7 +378,7 @@ func SubscribeV2Ray(pass string, userAgent string) (*model.Account, string, []by
 	urls := make([]string, 0, len(nodes))
 	subscriptionFormat := clientcompat.V2RaySubscriptionFormat(userAgent)
 	for _, node := range nodes {
-		if !clientcompat.Includes(node.ClientTypes, constant.ClientV2Ray) {
+		if !clientcompat.Includes(node.ClientTypes, client) {
 			continue
 		}
 		nodeUrl, _, err := nodeURLForClient(account.Id, account.Username, node.Id, subscriptionFormat)
@@ -424,6 +430,12 @@ func ExportOptions() ([]vo.ClientExportOptionVo, error) {
 			Id:        "v2ray",
 			Name:      "V2Ray",
 			Templates: []vo.ClientTemplateVo{{Id: "default", Name: defaultName(systemConfig.XrayTemplateName, "Default")}},
+			Formats:   []string{"link", "file", "qrcode"},
+		},
+		{
+			Id:        "shadowrocket",
+			Name:      "Shadowrocket",
+			Templates: []vo.ClientTemplateVo{{Id: "default", Name: "Default"}},
 			Formats:   []string{"link", "file", "qrcode"},
 		},
 	}, nil

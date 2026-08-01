@@ -176,10 +176,16 @@ func migrateClientExportPermissions() error {
 }
 
 func migrateNodeClientTypesColumn() error {
-	_, err := db.Exec("ALTER TABLE `node` ADD COLUMN `client_types` varchar(64) NOT NULL DEFAULT 'sing-box,clash-meta,v2ray' COMMENT '订阅适用客户端' AFTER `priority`")
-	if err != nil && strings.Contains(err.Error(), "Duplicate column name") {
-		return nil
+	_, err := db.Exec("ALTER TABLE `node` ADD COLUMN `client_types` varchar(64) NOT NULL DEFAULT 'sing-box,clash-meta,v2ray,shadowrocket' COMMENT '订阅适用客户端' AFTER `priority`")
+	if err != nil && !strings.Contains(err.Error(), "Duplicate column name") {
+		return err
 	}
+	// Preserve customized client selections. Only records still carrying the
+	// former complete default gain the newly supported client automatically.
+	if _, err = db.Exec("UPDATE `node` SET `client_types` = 'sing-box,clash-meta,v2ray,shadowrocket' WHERE `client_types` = 'sing-box,clash-meta,v2ray'"); err != nil {
+		return err
+	}
+	_, err = db.Exec("ALTER TABLE `node` ALTER `client_types` SET DEFAULT 'sing-box,clash-meta,v2ray,shadowrocket'")
 	return err
 }
 

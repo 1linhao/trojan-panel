@@ -17,8 +17,8 @@ func TestEncode(t *testing.T) {
 		{name: "empty selection", clients: stringSlicePointer([]string{}), want: ""},
 		{
 			name:    "normalizes order and duplicates",
-			clients: stringSlicePointer([]string{constant.ClientV2Ray, constant.ClientSingBox, constant.ClientV2Ray}),
-			want:    constant.ClientSingBox + "," + constant.ClientV2Ray,
+			clients: stringSlicePointer([]string{constant.ClientShadowrocket, constant.ClientV2Ray, constant.ClientSingBox, constant.ClientV2Ray}),
+			want:    constant.ClientSingBox + "," + constant.ClientV2Ray + "," + constant.ClientShadowrocket,
 		},
 		{name: "rejects unknown client", clients: stringSlicePointer([]string{"unknown"}), wantErr: true},
 	}
