@@ -102,6 +102,12 @@ func SubscribeClash(pass string) (*model.Account, string, []byte, vo.SystemVo, e
 					vless.WsOpts.Path = streamSettings.WsSettings.Path
 					vless.WsOpts.Headers.Host = streamSettings.WsSettings.Headers.Host
 				}
+				if uintValue(nodeXray.XudpEnable) == 1 {
+					vless.PacketEncoding = "xudp"
+				}
+				if uintValue(nodeXray.MuxEnable) == 1 {
+					vless.Smux = &bo.Smux{Enabled: true, Protocol: "h2mux"}
+				}
 				ClashConfigInterface = append(ClashConfigInterface, vless)
 				proxies = append(proxies, *item.Name)
 			case constant.ProtocolVmess:
@@ -134,6 +140,12 @@ func SubscribeClash(pass string) (*model.Account, string, []byte, vo.SystemVo, e
 					vmess.WsOpts.Path = streamSettings.WsSettings.Path
 					vmess.WsOpts.Headers.Host = streamSettings.WsSettings.Headers.Host
 				}
+				if uintValue(nodeXray.XudpEnable) == 1 {
+					vmess.PacketEncoding = "xudp"
+				}
+				if uintValue(nodeXray.MuxEnable) == 1 {
+					vmess.Smux = &bo.Smux{Enabled: true, Protocol: "h2mux"}
+				}
 				ClashConfigInterface = append(ClashConfigInterface, vmess)
 				proxies = append(proxies, *item.Name)
 			case constant.ProtocolTrojan:
@@ -158,6 +170,9 @@ func SubscribeClash(pass string) (*model.Account, string, []byte, vo.SystemVo, e
 					trojan.WsOpts.Path = streamSettings.WsSettings.Path
 					trojan.WsOpts.Headers.Host = streamSettings.WsSettings.Headers.Host
 				}
+				if uintValue(nodeXray.MuxEnable) == 1 {
+					trojan.Smux = &bo.Smux{Enabled: true, Protocol: "h2mux"}
+				}
 				ClashConfigInterface = append(ClashConfigInterface, trojan)
 				proxies = append(proxies, *item.Name)
 			case constant.ProtocolShadowsocks:
@@ -169,6 +184,10 @@ func SubscribeClash(pass string) (*model.Account, string, []byte, vo.SystemVo, e
 					Cipher:   *nodeXray.XraySSMethod,
 					Password: pass,
 					Udp:      true,
+				}
+				if uintValue(nodeXray.UotEnable) == 1 {
+					shadowsocks.UdpOverTcp = true
+					shadowsocks.UdpOverTcpVersion = xrayUotVersion(nodeXray.UotVersion)
 				}
 				ClashConfigInterface = append(ClashConfigInterface, shadowsocks)
 				proxies = append(proxies, *item.Name)
@@ -1062,6 +1081,7 @@ func buildSingBoxXrayOutbound(item model.Node, pass string) (map[string]interfac
 	default:
 		return nil, nil
 	}
+	applySingBoxXrayClientOptions(outbound, nodeXray)
 
 	if streamSettings.Security == "tls" {
 		tlsConfig := map[string]interface{}{
@@ -1110,4 +1130,34 @@ func buildSingBoxXrayOutbound(item model.Node, pass string) (map[string]interfac
 		}
 	}
 	return outbound, nil
+}
+
+func applySingBoxXrayClientOptions(outbound map[string]interface{}, nodeXray *model.NodeXray) {
+	switch stringValue(nodeXray.Protocol) {
+	case constant.ProtocolShadowsocks:
+		if uintValue(nodeXray.UotEnable) == 1 {
+			outbound["udp_over_tcp"] = map[string]interface{}{
+				"enabled": true,
+				"version": xrayUotVersion(nodeXray.UotVersion),
+			}
+		}
+	case constant.ProtocolVless, constant.ProtocolVmess:
+		if uintValue(nodeXray.XudpEnable) == 1 {
+			outbound["packet_encoding"] = "xudp"
+		}
+		if uintValue(nodeXray.MuxEnable) == 1 {
+			outbound["multiplex"] = map[string]interface{}{"enabled": true, "protocol": "h2mux"}
+		}
+	case constant.ProtocolTrojan:
+		if uintValue(nodeXray.MuxEnable) == 1 {
+			outbound["multiplex"] = map[string]interface{}{"enabled": true, "protocol": "h2mux"}
+		}
+	}
+}
+
+func xrayUotVersion(version *uint) uint {
+	if version != nil && (*version == 1 || *version == 2) {
+		return *version
+	}
+	return 2
 }

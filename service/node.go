@@ -56,6 +56,10 @@ func SelectNodeById(id *uint) (*vo.NodeOneVo, error) {
 			nodeOneVo.XrayProtocol = *nodeXray.Protocol
 			nodeOneVo.XrayFlow = *nodeXray.XrayFlow
 			nodeOneVo.XraySSMethod = *nodeXray.XraySSMethod
+			nodeOneVo.XrayUotEnable = nodeUintValue(nodeXray.UotEnable, 0)
+			nodeOneVo.XrayUotVersion = nodeUintValue(nodeXray.UotVersion, 2)
+			nodeOneVo.XrayXudpEnable = nodeUintValue(nodeXray.XudpEnable, 0)
+			nodeOneVo.XrayMuxEnable = nodeUintValue(nodeXray.MuxEnable, 0)
 			nodeOneVo.RealityPbk = *nodeXray.RealityPbk
 			xraySettingEntity := vo.XraySettingEntity{}
 			if nodeXray.Settings != nil && *nodeXray.Settings != "" {
@@ -208,6 +212,10 @@ func CreateNode(token string, nodeCreateDto dto.NodeCreateDto) error {
 			Protocol:       nodeCreateDto.XrayProtocol,
 			XrayFlow:       nodeCreateDto.XrayFlow,
 			XraySSMethod:   nodeCreateDto.XraySSMethod,
+			UotEnable:      nodeCreateDto.XrayUotEnable,
+			UotVersion:     nodeCreateDto.XrayUotVersion,
+			XudpEnable:     nodeCreateDto.XrayXudpEnable,
+			MuxEnable:      nodeCreateDto.XrayMuxEnable,
 			RealityPbk:     nodeCreateDto.RealityPbk,
 			Settings:       nodeCreateDto.XraySettings,
 			StreamSettings: nodeCreateDto.XrayStreamSettings,
@@ -521,6 +529,10 @@ func UpdateNodeById(token string, nodeUpdateDto *dto.NodeUpdateDto) error {
 				Protocol:       nodeUpdateDto.XrayProtocol,
 				XrayFlow:       nodeUpdateDto.XrayFlow,
 				XraySSMethod:   nodeUpdateDto.XraySSMethod,
+				UotEnable:      nodeUpdateDto.XrayUotEnable,
+				UotVersion:     nodeUpdateDto.XrayUotVersion,
+				XudpEnable:     nodeUpdateDto.XrayXudpEnable,
+				MuxEnable:      nodeUpdateDto.XrayMuxEnable,
 				Settings:       nodeUpdateDto.XraySettings,
 				StreamSettings: nodeUpdateDto.XrayStreamSettings,
 				Tag:            nodeUpdateDto.XrayTag,
@@ -625,6 +637,10 @@ func UpdateNodeById(token string, nodeUpdateDto *dto.NodeUpdateDto) error {
 				Protocol:       nodeUpdateDto.XrayProtocol,
 				XrayFlow:       nodeUpdateDto.XrayFlow,
 				XraySSMethod:   nodeUpdateDto.XraySSMethod,
+				UotEnable:      nodeUpdateDto.XrayUotEnable,
+				UotVersion:     nodeUpdateDto.XrayUotVersion,
+				XudpEnable:     nodeUpdateDto.XrayXudpEnable,
+				MuxEnable:      nodeUpdateDto.XrayMuxEnable,
 				Settings:       nodeUpdateDto.XraySettings,
 				StreamSettings: nodeUpdateDto.XrayStreamSettings,
 				Tag:            nodeUpdateDto.XrayTag,
@@ -783,6 +799,9 @@ func nodeURLForClient(accountId *uint, username *string, id *uint, client string
 
 			if *nodeXray.Protocol == "vless" {
 				headBuilder.WriteString(fmt.Sprintf("&flow=%s", *nodeXray.XrayFlow))
+			}
+			if (*nodeXray.Protocol == "vless" || *nodeXray.Protocol == "vmess") && uintValue(nodeXray.XudpEnable) == 1 {
+				headBuilder.WriteString("&packetEncoding=xudp")
 			}
 
 			if streamSettings.Security == "tls" {

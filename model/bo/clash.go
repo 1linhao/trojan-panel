@@ -19,6 +19,8 @@ type Vless struct {
 	SkipCertVerify    bool        `yaml:"skip-cert-verify,omitempty"`
 	RealityOpts       RealityOpts `yaml:"reality-opts,omitempty"`
 	WsOpts            WsOpts      `yaml:"ws-opts,omitempty"`
+	PacketEncoding    string      `yaml:"packet-encoding,omitempty"`
+	Smux              *Smux       `yaml:"smux,omitempty"`
 }
 
 type RealityOpts struct {
@@ -41,6 +43,8 @@ type Vmess struct {
 	ServerName        string `yaml:"servername,omitempty"`
 	Network           string `yaml:"network,omitempty"`
 	WsOpts            WsOpts `yaml:"ws-opts,omitempty"`
+	PacketEncoding    string `yaml:"packet-encoding,omitempty"`
+	Smux              *Smux  `yaml:"smux,omitempty"`
 }
 
 type Trojan struct {
@@ -55,16 +59,24 @@ type Trojan struct {
 	SkipCertVerify    bool     `yaml:"skip-cert-verify,omitempty"`
 	Alpn              []string `yaml:"alpn,omitempty"`
 	WsOpts            WsOpts   `yaml:"ws-opts,omitempty"`
+	Smux              *Smux    `yaml:"smux,omitempty"`
 }
 
 type Shadowsocks struct {
-	Name     string `yaml:"name"`
-	Type     string `yaml:"type"`
-	Server   string `yaml:"server"`
-	Port     uint   `yaml:"port"`
-	Cipher   string `yaml:"cipher"`
-	Password string `yaml:"password"`
-	Udp      bool   `yaml:"udp"`
+	Name              string `yaml:"name"`
+	Type              string `yaml:"type"`
+	Server            string `yaml:"server"`
+	Port              uint   `yaml:"port"`
+	Cipher            string `yaml:"cipher"`
+	Password          string `yaml:"password"`
+	Udp               bool   `yaml:"udp"`
+	UdpOverTcp        bool   `yaml:"udp-over-tcp,omitempty"`
+	UdpOverTcpVersion uint   `yaml:"udp-over-tcp-version,omitempty"`
+}
+
+type Smux struct {
+	Enabled  bool   `yaml:"enabled"`
+	Protocol string `yaml:"protocol,omitempty"`
 }
 
 type Socks struct {

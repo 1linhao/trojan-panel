@@ -22,6 +22,10 @@ type NodeCreateDto struct {
 	XrayProtocol       *string `json:"xrayProtocol" form:"xrayProtocol" validate:"omitempty,min=0,max=32"`
 	XrayFlow           *string `json:"xrayFlow" form:"xrayFlow" validate:"omitempty,min=0,max=32"`
 	XraySSMethod       *string `json:"xraySSMethod" form:"xraySSMethod" validate:"omitempty,min=0,max=32"`
+	XrayUotEnable      *uint   `json:"xrayUotEnable" form:"xrayUotEnable" validate:"omitempty,oneof=0 1"`
+	XrayUotVersion     *uint   `json:"xrayUotVersion" form:"xrayUotVersion" validate:"omitempty,oneof=1 2"`
+	XrayXudpEnable     *uint   `json:"xrayXudpEnable" form:"xrayXudpEnable" validate:"omitempty,oneof=0 1"`
+	XrayMuxEnable      *uint   `json:"xrayMuxEnable" form:"xrayMuxEnable" validate:"omitempty,oneof=0 1"`
 	RealityPbk         *string `json:"realityPbk" form:"realityPbk" validate:"omitempty,min=0,max=64"`
 	XraySettings       *string `json:"xraySettings" form:"xraySettings" validate:"omitempty,min=0,max=1024"`
 	XrayStreamSettings *string `json:"xrayStreamSettings" form:"xrayStreamSettings" validate:"omitempty,min=0,max=1024"`
@@ -72,6 +76,10 @@ type NodeUpdateDto struct {
 	XrayProtocol       *string `json:"xrayProtocol" form:"xrayProtocol" validate:"omitempty,min=0,max=32"`
 	XrayFlow           *string `json:"xrayFlow" form:"xrayFlow" validate:"omitempty,min=0,max=32"`
 	XraySSMethod       *string `json:"xraySSMethod" form:"xraySSMethod" validate:"omitempty,min=0,max=32"`
+	XrayUotEnable      *uint   `json:"xrayUotEnable" form:"xrayUotEnable" validate:"omitempty,oneof=0 1"`
+	XrayUotVersion     *uint   `json:"xrayUotVersion" form:"xrayUotVersion" validate:"omitempty,oneof=1 2"`
+	XrayXudpEnable     *uint   `json:"xrayXudpEnable" form:"xrayXudpEnable" validate:"omitempty,oneof=0 1"`
+	XrayMuxEnable      *uint   `json:"xrayMuxEnable" form:"xrayMuxEnable" validate:"omitempty,oneof=0 1"`
 	RealityPbk         *string `json:"realityPbk" form:"realityPbk" validate:"omitempty,min=0,max=64"`
 	XraySettings       *string `json:"xraySettings" form:"xraySettings" validate:"omitempty,min=0,max=1024"`
 	XrayStreamSettings *string `json:"xrayStreamSettings" form:"xrayStreamSettings" validate:"omitempty,min=0,max=1024"`

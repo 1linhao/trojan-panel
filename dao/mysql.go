@@ -51,6 +51,10 @@ func InitMySQL() {
 		logrus.Errorf("database migration err: %v", err)
 		panic(err)
 	}
+	if err = migrateNodeXrayClientOptionColumns(); err != nil {
+		logrus.Errorf("database migration err: %v", err)
+		panic(err)
+	}
 	if err = migrateNodeClientTypesColumn(); err != nil {
 		logrus.Errorf("database migration err: %v", err)
 		panic(err)
@@ -199,6 +203,21 @@ func migrateNodeUotColumns() error {
 			if strings.Contains(err.Error(), "Duplicate column name") {
 				continue
 			}
+			return err
+		}
+	}
+	return nil
+}
+
+func migrateNodeXrayClientOptionColumns() error {
+	migrations := []string{
+		"ALTER TABLE `node_xray` ADD COLUMN `uot_enable` tinyint(1) unsigned NOT NULL DEFAULT '0' COMMENT 'Shadowsocks 2022客户端UoT 0/否 1/是' AFTER `xray_ss_method`",
+		"ALTER TABLE `node_xray` ADD COLUMN `uot_version` tinyint(1) unsigned NOT NULL DEFAULT '2' COMMENT 'Shadowsocks 2022客户端UoT版本 1/2' AFTER `uot_enable`",
+		"ALTER TABLE `node_xray` ADD COLUMN `xudp_enable` tinyint(1) unsigned NOT NULL DEFAULT '0' COMMENT 'VLESS/VMess客户端XUDP 0/否 1/是' AFTER `uot_version`",
+		"ALTER TABLE `node_xray` ADD COLUMN `mux_enable` tinyint(1) unsigned NOT NULL DEFAULT '0' COMMENT 'VLESS/VMess/Trojan客户端复用 0/否 1/是' AFTER `xudp_enable`",
+	}
+	for _, migration := range migrations {
+		if _, err := db.Exec(migration); err != nil && !strings.Contains(err.Error(), "Duplicate column name") {
 			return err
 		}
 	}
