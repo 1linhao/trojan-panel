@@ -17,7 +17,8 @@ type NodeVo struct {
 	NaiveUotVersion uint      `json:"naiveUotVersion"`
 	CreateTime      time.Time `json:"createTime"`
 
-	Status int `json:"status"`
+	Status        int                   `json:"status"`
+	ServerTraffic ServerTrafficStatusVo `json:"serverTraffic"`
 }
 
 type NodePageVo struct {

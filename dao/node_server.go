@@ -13,7 +13,7 @@ import (
 
 func SelectNodeServer(where map[string]interface{}) (*model.NodeServer, error) {
 	var nodeServer model.NodeServer
-	selectFields := []string{"id", "ip", "grpc_port", "grpc_tls_mode", "grpc_tls_server_name", "`name`", "create_time"}
+	selectFields := []string{"id", "ip", "grpc_port", "grpc_tls_mode", "grpc_tls_server_name", "traffic_period", "traffic_limit_mode", "traffic_total_limit", "traffic_upload_limit", "traffic_download_limit", "`name`", "create_time"}
 	buildSelect, values, err := builder.BuildSelect("node_server", where, selectFields)
 	if err != nil {
 		logrus.Errorln(err.Error())
@@ -39,6 +39,9 @@ func CreateNodeServer(nodeServer *model.NodeServer) error {
 	nodeServerEntity := map[string]interface{}{
 		"ip": *nodeServer.Ip, "name": *nodeServer.Name,
 		"grpc_tls_mode": "mtls", "grpc_tls_server_name": *nodeServer.GrpcTLSServerName,
+		"traffic_period": *nodeServer.TrafficPeriod, "traffic_limit_mode": *nodeServer.TrafficLimitMode,
+		"traffic_total_limit": *nodeServer.TrafficTotalLimit, "traffic_upload_limit": *nodeServer.TrafficUploadLimit,
+		"traffic_download_limit": *nodeServer.TrafficDownloadLimit,
 	}
 	if nodeServer.GrpcPort != nil && *nodeServer.GrpcPort != 0 {
 		nodeServerEntity["grpc_port"] = *nodeServer.GrpcPort
@@ -93,7 +96,7 @@ func SelectNodeServerPage(queryName *string, queryIp *string, pageNum *uint, pag
 	if queryIp != nil && *queryIp != "" {
 		where["ip like"] = fmt.Sprintf("%%%s%%", *queryIp)
 	}
-	selectFields := []string{"id", "`ip`", "grpc_port", "grpc_tls_mode", "grpc_tls_server_name", "name", "create_time"}
+	selectFields := []string{"id", "`ip`", "grpc_port", "grpc_tls_mode", "grpc_tls_server_name", "traffic_period", "traffic_limit_mode", "traffic_total_limit", "traffic_upload_limit", "traffic_download_limit", "name", "create_time"}
 	selectSQL, values, err := builder.BuildSelect("node_server", where, selectFields)
 	if err != nil {
 		logrus.Errorln(err.Error())
@@ -142,6 +145,21 @@ func UpdateNodeServerById(nodeServer *model.NodeServer) error {
 	}
 	if nodeServer.GrpcTLSServerName != nil {
 		update["grpc_tls_server_name"] = *nodeServer.GrpcTLSServerName
+	}
+	if nodeServer.TrafficPeriod != nil {
+		update["traffic_period"] = *nodeServer.TrafficPeriod
+	}
+	if nodeServer.TrafficLimitMode != nil {
+		update["traffic_limit_mode"] = *nodeServer.TrafficLimitMode
+	}
+	if nodeServer.TrafficTotalLimit != nil {
+		update["traffic_total_limit"] = *nodeServer.TrafficTotalLimit
+	}
+	if nodeServer.TrafficUploadLimit != nil {
+		update["traffic_upload_limit"] = *nodeServer.TrafficUploadLimit
+	}
+	if nodeServer.TrafficDownloadLimit != nil {
+		update["traffic_download_limit"] = *nodeServer.TrafficDownloadLimit
 	}
 	if len(update) > 0 {
 		buildUpdate, values, err := builder.BuildUpdate("node_server", where, update)
@@ -197,7 +215,7 @@ func SelectNodeServerList(ip *string, name *string) ([]model.NodeServer, error) 
 	if name != nil && *name != "" {
 		where["name like"] = fmt.Sprintf("%%%s%%", *name)
 	}
-	selectFields := []string{"id", "`ip`", "name", "grpc_tls_mode", "grpc_tls_server_name", "create_time"}
+	selectFields := []string{"id", "`ip`", "name", "grpc_tls_mode", "grpc_tls_server_name", "traffic_period", "traffic_limit_mode", "traffic_total_limit", "traffic_upload_limit", "traffic_download_limit", "create_time"}
 	selectSQL, values, err := builder.BuildSelect("node_server", where, selectFields)
 	if err != nil {
 		logrus.Errorln(err.Error())
@@ -239,7 +257,7 @@ func SelectNodeServersForControl() ([]model.NodeServer, error) {
 
 func SelectNodeServerAll() ([]vo.NodeServerExportVo, error) {
 	var nodeServerExportVo []vo.NodeServerExportVo
-	selectFields := []string{"ip", "name", "grpc_port", "grpc_tls_mode", "grpc_tls_server_name", "create_time"}
+	selectFields := []string{"ip", "name", "grpc_port", "grpc_tls_mode", "grpc_tls_server_name", "traffic_period", "traffic_limit_mode", "traffic_total_limit", "traffic_upload_limit", "traffic_download_limit", "create_time"}
 	selectSQL, values, err := builder.BuildSelect("node_server", nil, selectFields)
 	if err != nil {
 		logrus.Errorln(err.Error())

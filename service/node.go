@@ -368,6 +368,14 @@ func SelectNodePage(queryName *string, nodeServerId *uint, pageNum *uint, pageSi
 	}
 
 	nodeVos := make([]vo.NodeVo, 0)
+	serverIDs := make([]uint, 0, len(nodeServerTransports))
+	for id := range nodeServerTransports {
+		serverIDs = append(serverIDs, id)
+	}
+	trafficStatuses, err := ServerTrafficStatuses(serverIDs)
+	if err != nil {
+		return nil, err
+	}
 	for _, item := range nodeBos {
 		nodeVo := vo.NodeVo{
 			Id:              item.Id,
@@ -383,6 +391,7 @@ func SelectNodePage(queryName *string, nodeServerId *uint, pageNum *uint, pageSi
 			NaiveUotVersion: item.NaiveUotVersion,
 			CreateTime:      item.CreateTime,
 			Status:          item.Status,
+			ServerTraffic:   trafficStatuses[item.NodeServerId],
 		}
 		nodeVos = append(nodeVos, nodeVo)
 	}

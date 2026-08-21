@@ -31,8 +31,17 @@ func SelectNodeServerById(c *gin.Context) {
 		GrpcPort:          *nodeServer.GrpcPort,
 		GrpcTLSMode:       *nodeServer.GrpcTLSMode,
 		GrpcTLSServerName: *nodeServer.GrpcTLSServerName,
-		CreateTime:        *nodeServer.CreateTime,
+		TrafficPeriod:     *nodeServer.TrafficPeriod, TrafficLimitMode: *nodeServer.TrafficLimitMode,
+		TrafficTotalLimit: *nodeServer.TrafficTotalLimit, TrafficUploadLimit: *nodeServer.TrafficUploadLimit,
+		TrafficDownloadLimit: *nodeServer.TrafficDownloadLimit,
+		CreateTime:           *nodeServer.CreateTime,
 	}
+	statuses, err := service.ServerTrafficStatuses([]uint{nodeServerOneVo.Id})
+	if err != nil {
+		vo.Fail(err.Error(), c)
+		return
+	}
+	nodeServerOneVo.TrafficStatus = statuses[nodeServerOneVo.Id]
 	vo.Success(nodeServerOneVo, c)
 }
 
@@ -48,6 +57,9 @@ func CreateNodeServer(c *gin.Context) {
 		Ip:                nodeServerCreateDto.Ip,
 		GrpcPort:          nodeServerCreateDto.GrpcPort,
 		GrpcTLSServerName: nodeServerCreateDto.GrpcTLSServerName,
+		TrafficPeriod:     nodeServerCreateDto.TrafficPeriod, TrafficLimitMode: nodeServerCreateDto.TrafficLimitMode,
+		TrafficTotalLimit: nodeServerCreateDto.TrafficTotalLimit, TrafficUploadLimit: nodeServerCreateDto.TrafficUploadLimit,
+		TrafficDownloadLimit: nodeServerCreateDto.TrafficDownloadLimit,
 	}
 	if err := service.CreateNodeServer(&nodeServer); err != nil {
 		vo.Fail(err.Error(), c)

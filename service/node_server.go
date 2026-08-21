@@ -46,9 +46,23 @@ func SelectNodeServerPage(queryName *string, queryIp *string, pageNum *uint, pag
 			GrpcPort:          *item.GrpcPort,
 			GrpcTLSMode:       *item.GrpcTLSMode,
 			GrpcTLSServerName: *item.GrpcTLSServerName,
-			CreateTime:        *item.CreateTime,
+			TrafficPeriod:     *item.TrafficPeriod, TrafficLimitMode: *item.TrafficLimitMode,
+			TrafficTotalLimit: *item.TrafficTotalLimit, TrafficUploadLimit: *item.TrafficUploadLimit,
+			TrafficDownloadLimit: *item.TrafficDownloadLimit,
+			CreateTime:           *item.CreateTime,
 		}
 		nodeServerVos = append(nodeServerVos, nodeServerVo)
+	}
+	serverIDs := make([]uint, 0, len(nodeServerVos))
+	for _, item := range nodeServerVos {
+		serverIDs = append(serverIDs, item.Id)
+	}
+	trafficStatuses, err := ServerTrafficStatuses(serverIDs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range nodeServerVos {
+		nodeServerVos[i].TrafficStatus = trafficStatuses[nodeServerVos[i].Id]
 	}
 
 	account := GetCurrentAccount(c)
@@ -136,11 +150,16 @@ func DeleteNodeServerById(id *uint) error {
 }
 
 func UpdateNodeServerById(dto *dto.NodeServerUpdateDto) error {
+	existing, err := dao.SelectNodeServer(map[string]interface{}{"id": *dto.Id})
+	if err != nil {
+		return err
+	}
 	count, err := dao.CountNodeByNameAndNodeServerId(nil, nil, dto.Id)
 	if err != nil {
 		return err
 	}
-	if count > 0 {
+	if count > 0 && (*existing.Ip != *dto.Ip || *existing.GrpcPort != *dto.GrpcPort ||
+		(dto.GrpcTLSServerName != nil && *existing.GrpcTLSServerName != *dto.GrpcTLSServerName)) {
 		return errors.New(constant.NodeServerDeletedError)
 	}
 
@@ -158,6 +177,9 @@ func UpdateNodeServerById(dto *dto.NodeServerUpdateDto) error {
 		Name:              dto.Name,
 		GrpcPort:          dto.GrpcPort,
 		GrpcTLSServerName: dto.GrpcTLSServerName,
+		TrafficPeriod:     dto.TrafficPeriod, TrafficLimitMode: dto.TrafficLimitMode,
+		TrafficTotalLimit: dto.TrafficTotalLimit, TrafficUploadLimit: dto.TrafficUploadLimit,
+		TrafficDownloadLimit: dto.TrafficDownloadLimit,
 	}
 	return dao.UpdateNodeServerById(&nodeServer)
 }

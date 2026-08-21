@@ -1,43 +1,46 @@
 package service
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
-	"time"
 	"trojan-panel/dao"
-	"trojan-panel/dao/redis"
-	"trojan-panel/model/constant"
 	"trojan-panel/model/vo"
 	"trojan-panel/util"
 )
 
 // CronTrafficRank 流量排行榜 一小时更新一次
 func CronTrafficRank() {
-	_, _ = TrafficRank()
+	// Rankings are now queried from indexed durable ledgers. Kept as a no-op
+	// for compatibility with existing cron configuration.
 }
 
-func TrafficRank() ([]vo.AccountTrafficRankVo, error) {
-	roleIds := []uint{constant.USER}
-	trafficRank, err := dao.TrafficRank(roleIds)
-	for index, item := range trafficRank {
-		usernameLen := len(item.Username)
-		prefix := item.Username[0:2]
-		suffix := item.Username[usernameLen-2:]
-		trafficRank[index].Username = fmt.Sprintf("%s****%s", prefix, suffix)
-	}
+func TrafficRank(period string) ([]vo.AccountTrafficRankVo, error) {
+	trafficRank, err := dao.TrafficRank(period)
 	if err != nil {
 		return nil, err
 	}
-	trafficRankJson, err := json.Marshal(trafficRank)
-	if err != nil {
-		logrus.Errorln(fmt.Sprintf("AccountTrafficRankVo serialization err: %v", err))
-		return nil, errors.New(constant.SysError)
+	for index := range trafficRank {
+		trafficRank[index].Username = maskUsername(trafficRank[index].Username)
 	}
-	redis.Client.String.Set("trojan-panel:trafficRank", trafficRankJson, time.Hour.Milliseconds()*2/1000)
 	return trafficRank, nil
+}
+
+func maskUsername(username string) string {
+	runes := []rune(username)
+	if len(runes) <= 2 {
+		return string(runes[:1]) + "****"
+	}
+	if len(runes) <= 4 {
+		return string(runes[:1]) + "****" + string(runes[len(runes)-1:])
+	}
+	return string(runes[:2]) + "****" + string(runes[len(runes)-2:])
+}
+
+func ServerTrafficUsage(period string, nodeServerID *uint, pageNum, pageSize uint) (*vo.ServerTrafficUsagePageVo, error) {
+	rows, total, err := dao.SelectServerTrafficUsage(period, nodeServerID, pageNum, pageSize)
+	if err != nil {
+		return nil, err
+	}
+	return &vo.ServerTrafficUsagePageVo{BaseVoPage: vo.BaseVoPage{PageNum: pageNum, PageSize: pageSize, Total: total}, Rows: rows}, nil
 }
 
 func PanelGroup(c *gin.Context) (*vo.PanelGroupVo, error) {

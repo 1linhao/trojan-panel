@@ -38,7 +38,9 @@ type AccountInfo struct {
 
 type AccountTrafficRankVo struct {
 	Username    string `json:"username" ddb:"username"`
-	TrafficUsed string `json:"trafficUsed" ddb:"trafficUsed"`
+	Upload      uint64 `json:"upload" ddb:"upload"`
+	Download    uint64 `json:"download" ddb:"download"`
+	TrafficUsed uint64 `json:"trafficUsed" ddb:"traffic_used"`
 }
 
 type AccountExportVo struct {

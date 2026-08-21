@@ -12,5 +12,6 @@ func initDashboardRouter(trojanApi *gin.RouterGroup) {
 		dashboard.GET("/panelGroup", api.PanelGroup)
 		// 流量排行榜
 		dashboard.GET("/trafficRank", api.TrafficRank)
+		dashboard.GET("/serverTrafficUsage", api.ServerTrafficUsage)
 	}
 }

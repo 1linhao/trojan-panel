@@ -497,31 +497,6 @@ func SelectAccountsByExpireTime(expireTime uint) ([]model.Account, error) {
 	return accounts, nil
 }
 
-// TrafficRank 流量排行 前15名
-func TrafficRank(roleIds []uint) ([]vo.AccountTrafficRankVo, error) {
-	accountTrafficRankVos := make([]vo.AccountTrafficRankVo, 0)
-	buildSelect, values, err := builder.NamedQuery("select username,upload + download as trafficUsed from account where (quota < 0 or quota > download + upload) and role_id in {{roleIds}} order by trafficUsed desc limit 15",
-		map[string]interface{}{
-			"roleIds": roleIds,
-		})
-	if err != nil {
-		logrus.Errorln(err.Error())
-		return nil, errors.New(constant.SysError)
-	}
-	rows, err := db.Query(buildSelect, values...)
-	if err != nil {
-		logrus.Errorln(err.Error())
-		return nil, errors.New(constant.SysError)
-	}
-	defer rows.Close()
-
-	if err = scanner.Scan(rows, &accountTrafficRankVos); err != nil {
-		logrus.Errorln(err.Error())
-		return nil, errors.New(constant.SysError)
-	}
-	return accountTrafficRankVos, nil
-}
-
 // ResetAccountDownloadAndUpload 重设下载和上传流量
 func ResetAccountDownloadAndUpload(id *uint, roleIds *[]uint) error {
 	where := map[string]interface{}{
