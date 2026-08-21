@@ -43,6 +43,10 @@ func ServerTrafficUsage(c *gin.Context) {
 		vo.Fail(constant.ValidateFailed, c)
 		return
 	}
+	if *query.PageSize > 100 {
+		vo.Fail(constant.ValidateFailed, c)
+		return
+	}
 	result, err := service.ServerTrafficUsage(query.Period, query.NodeServerId, *query.PageNum, *query.PageSize)
 	if err != nil {
 		vo.Fail(err.Error(), c)
