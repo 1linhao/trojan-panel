@@ -149,6 +149,14 @@ func DeleteNodeServerById(id *uint) error {
 	return dao.DeleteNodeServerById(id)
 }
 
+func ResetNodeServerTraffic(id *uint) (*vo.ResetNodeServerTrafficVo, error) {
+	deletedRows, err := dao.ResetNodeServerTraffic(*id)
+	if err != nil {
+		return nil, err
+	}
+	return &vo.ResetNodeServerTrafficVo{DeletedRows: deletedRows}, nil
+}
+
 func UpdateNodeServerById(dto *dto.NodeServerUpdateDto) error {
 	existing, err := dao.SelectNodeServer(map[string]interface{}{"id": *dto.Id})
 	if err != nil {

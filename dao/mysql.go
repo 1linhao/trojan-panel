@@ -104,6 +104,16 @@ func migrateTrafficAccountingSchema() error {
 			KEY idx_server_date_account (node_server_id, traffic_date, account_id),
 			KEY idx_account_date (account_id, traffic_date)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+		`CREATE TABLE IF NOT EXISTS account_traffic_daily (
+			traffic_date date NOT NULL,
+			account_id bigint unsigned NOT NULL,
+			upload bigint unsigned NOT NULL DEFAULT 0,
+			download bigint unsigned NOT NULL DEFAULT 0,
+			create_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			update_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY (traffic_date, account_id),
+			KEY idx_account_date (account_id, traffic_date)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 	}
 	for _, migration := range migrations {
 		if _, err := db.Exec(migration); err != nil {
@@ -118,6 +128,17 @@ func migrateTrafficAccountingSchema() error {
 		ON DUPLICATE KEY UPDATE account_id=VALUES(account_id)`); err != nil {
 		return err
 	}
+	var hasAccountDailyRows bool
+	if err := db.QueryRow(`SELECT EXISTS(SELECT 1 FROM account_traffic_daily LIMIT 1)`).Scan(&hasAccountDailyRows); err != nil {
+		return err
+	}
+	if !hasAccountDailyRows {
+		if _, err := db.Exec(`INSERT INTO account_traffic_daily (traffic_date, account_id, upload, download)
+			SELECT traffic_date, account_id, SUM(upload), SUM(download)
+			FROM account_server_traffic_daily GROUP BY traffic_date, account_id`); err != nil {
+			return err
+		}
+	}
 	for _, role := range []string{"sysadmin", "admin"} {
 		var count int
 		if err := db.QueryRow("SELECT COUNT(1) FROM casbin_rule WHERE p_type='p' AND v0=? AND v1='/api/dashboard/serverTrafficUsage' AND v2='GET'", role).Scan(&count); err != nil {
@@ -125,6 +146,17 @@ func migrateTrafficAccountingSchema() error {
 		}
 		if count == 0 {
 			if _, err := db.Exec("INSERT INTO casbin_rule (p_type,v0,v1,v2,v3,v4,v5) VALUES ('p',?,'/api/dashboard/serverTrafficUsage','GET','','','')", role); err != nil {
+				return err
+			}
+		}
+	}
+	for _, role := range []string{"sysadmin", "admin"} {
+		var resetPermissionCount int
+		if err := db.QueryRow("SELECT COUNT(1) FROM casbin_rule WHERE p_type='p' AND v0=? AND v1='/api/nodeServer/resetNodeServerTraffic' AND v2='POST'", role).Scan(&resetPermissionCount); err != nil {
+			return err
+		}
+		if resetPermissionCount == 0 {
+			if _, err := db.Exec("INSERT INTO casbin_rule (p_type,v0,v1,v2,v3,v4,v5) VALUES ('p',?,'/api/nodeServer/resetNodeServerTraffic','POST','','','')", role); err != nil {
 				return err
 			}
 		}

@@ -1,8 +1,11 @@
 package service
 
 import (
+	"errors"
 	"github.com/gin-gonic/gin"
+	"time"
 	"trojan-panel/dao"
+	"trojan-panel/model/constant"
 	"trojan-panel/model/vo"
 	"trojan-panel/util"
 )
@@ -13,8 +16,12 @@ func CronTrafficRank() {
 	// for compatibility with existing cron configuration.
 }
 
-func TrafficRank(period string) ([]vo.AccountTrafficRankVo, error) {
-	trafficRank, err := dao.TrafficRank(period)
+func TrafficRank(period, date string) ([]vo.AccountTrafficRankVo, error) {
+	start, end, err := trafficRankRange(period, date, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	trafficRank, err := dao.TrafficRank(period, start, end)
 	if err != nil {
 		return nil, err
 	}
@@ -22,6 +29,41 @@ func TrafficRank(period string) ([]vo.AccountTrafficRankVo, error) {
 		trafficRank[index].Username = maskUsername(trafficRank[index].Username)
 	}
 	return trafficRank, nil
+}
+
+func trafficRankRange(period, value string, now time.Time) (string, string, error) {
+	location, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		return "", "", errors.New(constant.SysError)
+	}
+	now = now.In(location)
+	switch period {
+	case "total":
+		if value != "" {
+			return "", "", errors.New(constant.ValidateFailed)
+		}
+		return "", "", nil
+	case "day":
+		if value == "" {
+			value = now.Format("2006-01-02")
+		}
+		parsed, parseErr := time.ParseInLocation("2006-01-02", value, location)
+		if parseErr != nil || parsed.Format("2006-01-02") != value {
+			return "", "", errors.New(constant.ValidateFailed)
+		}
+		return value, parsed.AddDate(0, 0, 1).Format("2006-01-02"), nil
+	case "month":
+		if value == "" {
+			value = now.Format("2006-01")
+		}
+		parsed, parseErr := time.ParseInLocation("2006-01", value, location)
+		if parseErr != nil || parsed.Format("2006-01") != value {
+			return "", "", errors.New(constant.ValidateFailed)
+		}
+		return parsed.Format("2006-01-02"), parsed.AddDate(0, 1, 0).Format("2006-01-02"), nil
+	default:
+		return "", "", errors.New(constant.ValidateFailed)
+	}
 }
 
 func maskUsername(username string) string {

@@ -35,3 +35,7 @@ type ServerTrafficUsagePageVo struct {
 	BaseVoPage
 	Rows []ServerTrafficUsageVo `json:"rows"`
 }
+
+type ResetNodeServerTrafficVo struct {
+	DeletedRows int64 `json:"deletedRows"`
+}

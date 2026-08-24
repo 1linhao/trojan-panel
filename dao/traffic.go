@@ -1,6 +1,7 @@
 package dao
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -11,25 +12,24 @@ import (
 	"trojan-panel/model/vo"
 )
 
-func TrafficRank(period string) ([]vo.AccountTrafficRankVo, error) {
+func TrafficRank(period, startDate, endDate string) ([]vo.AccountTrafficRankVo, error) {
 	var query string
+	args := []any{constant.USER}
 	if period == "total" {
 		query = `SELECT a.username, t.upload, t.download, t.upload + t.download AS traffic_used
 			FROM account_traffic_total t JOIN account a ON a.id=t.account_id
 			WHERE a.role_id=? AND a.deleted=0 AND (a.quota < 0 OR a.quota > a.download + a.upload)
 			ORDER BY traffic_used DESC LIMIT 15`
 	} else {
-		dateFilter := "d.traffic_date = CURRENT_DATE()"
-		if period == "month" {
-			dateFilter = "d.traffic_date >= DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01')"
-		}
-		query = fmt.Sprintf(`SELECT a.username, SUM(d.upload) AS upload, SUM(d.download) AS download,
+		query = `SELECT a.username, SUM(d.upload) AS upload, SUM(d.download) AS download,
 			SUM(d.upload + d.download) AS traffic_used
-			FROM account_server_traffic_daily d JOIN account a ON a.id=d.account_id
-			WHERE a.role_id=? AND a.deleted=0 AND (a.quota < 0 OR a.quota > a.download + a.upload) AND %s
-			GROUP BY a.id,a.username ORDER BY traffic_used DESC LIMIT 15`, dateFilter)
+			FROM account_traffic_daily d JOIN account a ON a.id=d.account_id
+			WHERE a.role_id=? AND a.deleted=0 AND (a.quota < 0 OR a.quota > a.download + a.upload)
+			AND d.traffic_date>=? AND d.traffic_date<?
+			GROUP BY a.id,a.username ORDER BY traffic_used DESC,a.username ASC LIMIT 15`
+		args = append(args, startDate, endDate)
 	}
-	rows, err := db.Query(query, constant.USER)
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		logrus.Errorln(err)
 		return nil, errors.New(constant.SysError)
@@ -41,6 +41,39 @@ func TrafficRank(period string) ([]vo.AccountTrafficRankVo, error) {
 		return nil, errors.New(constant.SysError)
 	}
 	return result, nil
+}
+
+func ResetNodeServerTraffic(nodeServerID uint) (int64, error) {
+	tx, err := db.Begin()
+	if err != nil {
+		logrus.Errorln(err)
+		return 0, errors.New(constant.SysError)
+	}
+	defer tx.Rollback()
+
+	var lockedID uint
+	if err = tx.QueryRow(`SELECT id FROM node_server WHERE id=? FOR UPDATE`, nodeServerID).Scan(&lockedID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, errors.New(constant.NodeNotExist)
+		}
+		logrus.Errorln(err)
+		return 0, errors.New(constant.SysError)
+	}
+	result, err := tx.Exec(`DELETE FROM account_server_traffic_daily WHERE node_server_id=?`, lockedID)
+	if err != nil {
+		logrus.Errorln(err)
+		return 0, errors.New(constant.SysError)
+	}
+	deletedRows, err := result.RowsAffected()
+	if err != nil {
+		logrus.Errorln(err)
+		return 0, errors.New(constant.SysError)
+	}
+	if err = tx.Commit(); err != nil {
+		logrus.Errorln(err)
+		return 0, errors.New(constant.SysError)
+	}
+	return deletedRows, nil
 }
 
 func SelectServerTrafficUsage(period string, nodeServerID *uint, pageNum, pageSize uint) ([]vo.ServerTrafficUsageVo, uint, error) {

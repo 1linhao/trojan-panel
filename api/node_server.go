@@ -97,6 +97,21 @@ func DeleteNodeServerById(c *gin.Context) {
 	vo.Success(nil, c)
 }
 
+func ResetNodeServerTraffic(c *gin.Context) {
+	var requiredID dto.RequiredIdDto
+	_ = c.ShouldBindJSON(&requiredID)
+	if err := validate.Struct(&requiredID); err != nil {
+		vo.Fail(constant.ValidateFailed, c)
+		return
+	}
+	result, err := service.ResetNodeServerTraffic(requiredID.Id)
+	if err != nil {
+		vo.Fail(err.Error(), c)
+		return
+	}
+	vo.Success(result, c)
+}
+
 func UpdateNodeServerById(c *gin.Context) {
 	var nodeServerUpdateDto dto.NodeServerUpdateDto
 	_ = c.ShouldBindJSON(&nodeServerUpdateDto)

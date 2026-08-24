@@ -28,7 +28,7 @@ func TrafficRank(c *gin.Context) {
 		vo.Fail(constant.ValidateFailed, c)
 		return
 	}
-	trafficRank, err := service.TrafficRank(query.Period)
+	trafficRank, err := service.TrafficRank(query.Period, query.Date)
 	if err != nil {
 		vo.Fail(err.Error(), c)
 		return
