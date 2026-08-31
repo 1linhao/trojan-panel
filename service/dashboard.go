@@ -98,11 +98,17 @@ func PanelGroup(c *gin.Context) (*vo.PanelGroupVo, error) {
 	if err != nil {
 		return nil, err
 	}
+	systemName := constant.SystemName
+	systemConfig, err := SelectSystemByName(&systemName)
+	if err != nil {
+		return nil, err
+	}
 	panelGroupVo := vo.PanelGroupVo{
-		Quota:        *account.Quota,
-		ResidualFlow: *account.Quota - *account.Upload - *account.Download,
-		NodeCount:    nodeCount,
-		ExpireTime:   *account.ExpireTime,
+		Quota:                       *account.Quota,
+		ResidualFlow:                *account.Quota - *account.Upload - *account.Download,
+		NodeCount:                   nodeCount,
+		ExpireTime:                  *account.ExpireTime,
+		ResetDownloadAndUploadMonth: &systemConfig.ResetDownloadAndUploadMonth,
 	}
 	if util.IsAdmin(accountInfo.Roles) {
 		var err error
