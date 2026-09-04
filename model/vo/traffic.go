@@ -22,8 +22,6 @@ type ServerTrafficStatusVo struct {
 }
 
 type ServerTrafficUsageVo struct {
-	AccountId      uint   `json:"accountId" ddb:"account_id"`
-	Username       string `json:"username" ddb:"username"`
 	NodeServerId   uint   `json:"nodeServerId" ddb:"node_server_id"`
 	NodeServerName string `json:"nodeServerName" ddb:"node_server_name"`
 	Upload         uint64 `json:"upload" ddb:"upload"`
@@ -34,6 +32,19 @@ type ServerTrafficUsageVo struct {
 type ServerTrafficUsagePageVo struct {
 	BaseVoPage
 	Rows []ServerTrafficUsageVo `json:"rows"`
+}
+
+type ServerTrafficUserUsageVo struct {
+	AccountId uint   `json:"accountId" ddb:"account_id"`
+	Username  string `json:"username" ddb:"username"`
+	Upload    uint64 `json:"upload" ddb:"upload"`
+	Download  uint64 `json:"download" ddb:"download"`
+	Total     uint64 `json:"total" ddb:"total"`
+}
+
+type ServerTrafficUserUsagePageVo struct {
+	BaseVoPage
+	Rows []ServerTrafficUserUsageVo `json:"rows"`
 }
 
 type ResetNodeServerTrafficVo struct {

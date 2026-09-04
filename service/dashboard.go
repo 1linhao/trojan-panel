@@ -17,7 +17,7 @@ func CronTrafficRank() {
 }
 
 func TrafficRank(period, date string) ([]vo.AccountTrafficRankVo, error) {
-	start, end, err := trafficRankRange(period, date, time.Now())
+	start, end, err := trafficDateRange(period, date, time.Now())
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +31,7 @@ func TrafficRank(period, date string) ([]vo.AccountTrafficRankVo, error) {
 	return trafficRank, nil
 }
 
-func trafficRankRange(period, value string, now time.Time) (string, string, error) {
+func trafficDateRange(period, value string, now time.Time) (string, string, error) {
 	location, err := time.LoadLocation("Asia/Shanghai")
 	if err != nil {
 		return "", "", errors.New(constant.SysError)
@@ -77,12 +77,28 @@ func maskUsername(username string) string {
 	return string(runes[:2]) + "****" + string(runes[len(runes)-2:])
 }
 
-func ServerTrafficUsage(period string, nodeServerID *uint, pageNum, pageSize uint) (*vo.ServerTrafficUsagePageVo, error) {
-	rows, total, err := dao.SelectServerTrafficUsage(period, nodeServerID, pageNum, pageSize)
+func ServerTrafficUsage(period, date string, nodeServerID *uint, pageNum, pageSize uint) (*vo.ServerTrafficUsagePageVo, error) {
+	start, end, err := trafficDateRange(period, date, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	rows, total, err := dao.SelectServerTrafficUsage(start, end, nodeServerID, pageNum, pageSize)
 	if err != nil {
 		return nil, err
 	}
 	return &vo.ServerTrafficUsagePageVo{BaseVoPage: vo.BaseVoPage{PageNum: pageNum, PageSize: pageSize, Total: total}, Rows: rows}, nil
+}
+
+func ServerTrafficUserUsage(period, date string, nodeServerID, pageNum, pageSize uint) (*vo.ServerTrafficUserUsagePageVo, error) {
+	start, end, err := trafficDateRange(period, date, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	rows, total, err := dao.SelectServerTrafficUserUsage(start, end, nodeServerID, pageNum, pageSize)
+	if err != nil {
+		return nil, err
+	}
+	return &vo.ServerTrafficUserUsagePageVo{BaseVoPage: vo.BaseVoPage{PageNum: pageNum, PageSize: pageSize, Total: total}, Rows: rows}, nil
 }
 
 func PanelGroup(c *gin.Context) (*vo.PanelGroupVo, error) {

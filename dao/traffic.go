@@ -76,33 +76,33 @@ func ResetNodeServerTraffic(nodeServerID uint) (int64, error) {
 	return deletedRows, nil
 }
 
-func SelectServerTrafficUsage(period string, nodeServerID *uint, pageNum, pageSize uint) ([]vo.ServerTrafficUsageVo, uint, error) {
+func serverTrafficConditions(startDate, endDate string, nodeServerID *uint) (string, []any) {
 	conditions := []string{"1=1"}
-	args := make([]any, 0, 4)
+	args := make([]any, 0, 3)
 	if nodeServerID != nil && *nodeServerID != 0 {
 		conditions = append(conditions, "d.node_server_id=?")
 		args = append(args, *nodeServerID)
 	}
-	switch period {
-	case "day":
-		conditions = append(conditions, "d.traffic_date=CURRENT_DATE()")
-	case "month":
-		conditions = append(conditions, "d.traffic_date>=DATE_FORMAT(CURRENT_DATE(), '%Y-%m-01')")
-	case "year":
-		conditions = append(conditions, "d.traffic_date>=MAKEDATE(YEAR(CURRENT_DATE()),1)")
+	if startDate != "" && endDate != "" {
+		conditions = append(conditions, "d.traffic_date>=?", "d.traffic_date<?")
+		args = append(args, startDate, endDate)
 	}
-	where := strings.Join(conditions, " AND ")
+	return strings.Join(conditions, " AND "), args
+}
+
+func SelectServerTrafficUsage(startDate, endDate string, nodeServerID *uint, pageNum, pageSize uint) ([]vo.ServerTrafficUsageVo, uint, error) {
+	where, args := serverTrafficConditions(startDate, endDate, nodeServerID)
 	groupQuery := ` FROM account_server_traffic_daily d
-		JOIN account a ON a.id=d.account_id JOIN node_server ns ON ns.id=d.node_server_id
-		WHERE ` + where + ` GROUP BY d.account_id,a.username,d.node_server_id,ns.name`
+		JOIN node_server ns ON ns.id=d.node_server_id
+		WHERE ` + where + ` GROUP BY d.node_server_id,ns.name`
 	var total uint
-	if err := db.QueryRow("SELECT COUNT(*) FROM (SELECT d.account_id"+groupQuery+") grouped", args...).Scan(&total); err != nil {
+	if err := db.QueryRow("SELECT COUNT(*) FROM (SELECT d.node_server_id"+groupQuery+") grouped", args...).Scan(&total); err != nil {
 		logrus.Errorln(err)
 		return nil, 0, errors.New(constant.SysError)
 	}
-	query := `SELECT d.account_id,a.username,d.node_server_id,ns.name AS node_server_name,
+	query := `SELECT d.node_server_id,ns.name AS node_server_name,
 		SUM(d.upload) AS upload,SUM(d.download) AS download,SUM(d.upload+d.download) AS total` + groupQuery +
-		` ORDER BY total DESC,a.username ASC,d.node_server_id ASC LIMIT ?,?`
+		` ORDER BY total DESC,ns.name ASC,d.node_server_id ASC LIMIT ?,?`
 	queryArgs := append(append([]any{}, args...), (pageNum-1)*pageSize, pageSize)
 	rows, err := db.Query(query, queryArgs...)
 	if err != nil {
@@ -111,6 +111,34 @@ func SelectServerTrafficUsage(period string, nodeServerID *uint, pageNum, pageSi
 	}
 	defer rows.Close()
 	result := make([]vo.ServerTrafficUsageVo, 0)
+	if err = scanner.Scan(rows, &result); err != nil && err != scanner.ErrEmptyResult {
+		logrus.Errorln(err)
+		return nil, 0, errors.New(constant.SysError)
+	}
+	return result, total, nil
+}
+
+func SelectServerTrafficUserUsage(startDate, endDate string, nodeServerID, pageNum, pageSize uint) ([]vo.ServerTrafficUserUsageVo, uint, error) {
+	where, args := serverTrafficConditions(startDate, endDate, &nodeServerID)
+	groupQuery := ` FROM account_server_traffic_daily d
+		JOIN account a ON a.id=d.account_id
+		WHERE ` + where + ` GROUP BY d.account_id,a.username`
+	var total uint
+	if err := db.QueryRow("SELECT COUNT(*) FROM (SELECT d.account_id"+groupQuery+") grouped", args...).Scan(&total); err != nil {
+		logrus.Errorln(err)
+		return nil, 0, errors.New(constant.SysError)
+	}
+	query := `SELECT d.account_id,a.username,
+		SUM(d.upload) AS upload,SUM(d.download) AS download,SUM(d.upload+d.download) AS total` + groupQuery +
+		` ORDER BY total DESC,a.username ASC,d.account_id ASC LIMIT ?,?`
+	queryArgs := append(append([]any{}, args...), (pageNum-1)*pageSize, pageSize)
+	rows, err := db.Query(query, queryArgs...)
+	if err != nil {
+		logrus.Errorln(err)
+		return nil, 0, errors.New(constant.SysError)
+	}
+	defer rows.Close()
+	result := make([]vo.ServerTrafficUserUsageVo, 0)
 	if err = scanner.Scan(rows, &result); err != nil && err != scanner.ErrEmptyResult {
 		logrus.Errorln(err)
 		return nil, 0, errors.New(constant.SysError)

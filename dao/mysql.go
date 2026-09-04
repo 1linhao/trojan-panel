@@ -139,14 +139,16 @@ func migrateTrafficAccountingSchema() error {
 			return err
 		}
 	}
-	for _, role := range []string{"sysadmin", "admin"} {
-		var count int
-		if err := db.QueryRow("SELECT COUNT(1) FROM casbin_rule WHERE p_type='p' AND v0=? AND v1='/api/dashboard/serverTrafficUsage' AND v2='GET'", role).Scan(&count); err != nil {
-			return err
-		}
-		if count == 0 {
-			if _, err := db.Exec("INSERT INTO casbin_rule (p_type,v0,v1,v2,v3,v4,v5) VALUES ('p',?,'/api/dashboard/serverTrafficUsage','GET','','','')", role); err != nil {
+	for _, permissionPath := range []string{"/api/dashboard/serverTrafficUsage", "/api/dashboard/serverTrafficUserUsage"} {
+		for _, role := range []string{"sysadmin", "admin"} {
+			var count int
+			if err := db.QueryRow("SELECT COUNT(1) FROM casbin_rule WHERE p_type='p' AND v0=? AND v1=? AND v2='GET'", role, permissionPath).Scan(&count); err != nil {
 				return err
+			}
+			if count == 0 {
+				if _, err := db.Exec("INSERT INTO casbin_rule (p_type,v0,v1,v2,v3,v4,v5) VALUES ('p',?,?,'GET','','','')", role, permissionPath); err != nil {
+					return err
+				}
 			}
 		}
 	}

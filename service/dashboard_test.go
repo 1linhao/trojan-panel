@@ -27,7 +27,7 @@ func TestTrafficRankRange(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			start, end, err := trafficRankRange(test.period, test.value, now)
+			start, end, err := trafficDateRange(test.period, test.value, now)
 			if (err != nil) != test.wantErr {
 				t.Fatalf("error=%v wantErr=%v", err, test.wantErr)
 			}

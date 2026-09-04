@@ -39,6 +39,9 @@ func TrafficRank(c *gin.Context) {
 func ServerTrafficUsage(c *gin.Context) {
 	var query dto.ServerTrafficUsageDto
 	_ = c.ShouldBindQuery(&query)
+	if query.Period == "" {
+		query.Period = "total"
+	}
 	if err := validate.Struct(&query); err != nil {
 		vo.Fail(constant.ValidateFailed, c)
 		return
@@ -47,7 +50,29 @@ func ServerTrafficUsage(c *gin.Context) {
 		vo.Fail(constant.ValidateFailed, c)
 		return
 	}
-	result, err := service.ServerTrafficUsage(query.Period, query.NodeServerId, *query.PageNum, *query.PageSize)
+	result, err := service.ServerTrafficUsage(query.Period, query.Date, query.NodeServerId, *query.PageNum, *query.PageSize)
+	if err != nil {
+		vo.Fail(err.Error(), c)
+		return
+	}
+	vo.Success(result, c)
+}
+
+func ServerTrafficUserUsage(c *gin.Context) {
+	var query dto.ServerTrafficUserUsageDto
+	_ = c.ShouldBindQuery(&query)
+	if query.Period == "" {
+		query.Period = "total"
+	}
+	if err := validate.Struct(&query); err != nil {
+		vo.Fail(constant.ValidateFailed, c)
+		return
+	}
+	if *query.PageSize > 100 {
+		vo.Fail(constant.ValidateFailed, c)
+		return
+	}
+	result, err := service.ServerTrafficUserUsage(query.Period, query.Date, query.NodeServerId, *query.PageNum, *query.PageSize)
 	if err != nil {
 		vo.Fail(err.Error(), c)
 		return

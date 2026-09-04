@@ -26,7 +26,7 @@ func TestTrafficMigrationAndQueries(t *testing.T) {
 		`CREATE TABLE account (id bigint unsigned primary key,username varchar(64) not null,role_id bigint unsigned not null,deleted tinyint unsigned not null,quota bigint not null,download bigint unsigned not null,upload bigint unsigned not null)`,
 		`CREATE TABLE node_server (id bigint unsigned primary key,name varchar(64) not null,ip varchar(64) not null,grpc_port int unsigned not null,grpc_tls_mode varchar(16) not null,grpc_tls_server_name varchar(253) not null)`,
 		`CREATE TABLE casbin_rule (p_type varchar(32),v0 varchar(255),v1 varchar(255),v2 varchar(255),v3 varchar(255),v4 varchar(255),v5 varchar(255))`,
-		`INSERT INTO account VALUES (7,'alice',3,0,-1,20,10)`,
+		`INSERT INTO account VALUES (7,'alice',3,0,-1,20,10),(8,'bob',1,0,-1,0,0)`,
 		`INSERT INTO node_server VALUES (2,'sf','127.0.0.1',8100,'mtls','sf.example.com'),(3,'hk','127.0.0.2',8100,'mtls','hk.example.com')`,
 	}
 	for _, statement := range statements {
@@ -45,6 +45,7 @@ func TestTrafficMigrationAndQueries(t *testing.T) {
 	}
 	if _, err = db.Exec(`INSERT INTO account_server_traffic_daily VALUES
 		(CURRENT_DATE(),7,2,30,40,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),
+		(CURRENT_DATE(),8,2,5,7,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),
 		(CURRENT_DATE(),7,3,10,20,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`); err != nil {
 		t.Fatal(err)
 	}
@@ -64,12 +65,22 @@ func TestTrafficMigrationAndQueries(t *testing.T) {
 	if err != nil || len(daily) != 1 || daily[0].TrafficUsed != 100 {
 		t.Fatalf("unexpected daily rank: %#v %v", daily, err)
 	}
+	startDate := today.Format("2006-01-02")
+	endDate := today.AddDate(0, 0, 1).Format("2006-01-02")
+	summaries, total, err := SelectServerTrafficUsage(startDate, endDate, nil, 1, 20)
+	if err != nil || total != 2 || len(summaries) != 2 || summaries[0].NodeServerId != 2 || summaries[0].Upload != 35 || summaries[0].Download != 47 {
+		t.Fatalf("unexpected server summaries: %#v total=%d err=%v", summaries, total, err)
+	}
+	users, total, err := SelectServerTrafficUserUsage(startDate, endDate, 2, 1, 20)
+	if err != nil || total != 2 || len(users) != 2 || users[0].Username != "alice" || users[0].Total != 70 || users[1].Username != "bob" || users[1].Total != 12 {
+		t.Fatalf("unexpected server user details: %#v total=%d err=%v", users, total, err)
+	}
 	statuses, err := SelectServerTrafficStatuses([]uint{2})
-	if err != nil || len(statuses) != 1 || statuses[0].UploadUsed != 30 || statuses[0].DownloadUsed != 40 {
+	if err != nil || len(statuses) != 1 || statuses[0].UploadUsed != 35 || statuses[0].DownloadUsed != 47 {
 		t.Fatalf("unexpected status: %#v %v", statuses, err)
 	}
 	deleted, err := ResetNodeServerTraffic(2)
-	if err != nil || deleted != 1 {
+	if err != nil || deleted != 2 {
 		t.Fatalf("unexpected reset result: deleted=%d err=%v", deleted, err)
 	}
 	statuses, err = SelectServerTrafficStatuses([]uint{2, 3})
@@ -90,5 +101,9 @@ func TestTrafficMigrationAndQueries(t *testing.T) {
 	var resetPermissions int
 	if err = db.QueryRow(`SELECT COUNT(*) FROM casbin_rule WHERE v0 IN ('sysadmin','admin') AND v1='/api/nodeServer/resetNodeServerTraffic' AND v2='POST'`).Scan(&resetPermissions); err != nil || resetPermissions != 2 {
 		t.Fatalf("unexpected reset permissions: count=%d err=%v", resetPermissions, err)
+	}
+	var trafficPermissions int
+	if err = db.QueryRow(`SELECT COUNT(*) FROM casbin_rule WHERE v0 IN ('sysadmin','admin') AND v1 IN ('/api/dashboard/serverTrafficUsage','/api/dashboard/serverTrafficUserUsage') AND v2='GET'`).Scan(&trafficPermissions); err != nil || trafficPermissions != 4 {
+		t.Fatalf("unexpected traffic permissions: count=%d err=%v", trafficPermissions, err)
 	}
 }
