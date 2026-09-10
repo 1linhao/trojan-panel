@@ -49,9 +49,12 @@ type NodeServerListVo struct {
 }
 
 type NodeServerInfoVo struct {
-	CpuUsed  float32 `json:"cpuUsed"`
-	MemUsed  float32 `json:"memUsed"`
-	DiskUsed float32 `json:"diskUsed"`
+	CpuUsed                       float32 `json:"cpuUsed"`
+	MemUsed                       float32 `json:"memUsed"`
+	DiskUsed                      float32 `json:"diskUsed"`
+	NetworkUploadBytesPerSecond   uint64  `json:"networkUploadBytesPerSecond"`
+	NetworkDownloadBytesPerSecond uint64  `json:"networkDownloadBytesPerSecond"`
+	SampledAt                     int64   `json:"sampledAt"`
 }
 
 type NodeServerExportVo struct {

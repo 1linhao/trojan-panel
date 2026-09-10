@@ -154,9 +154,12 @@ func GetNodeServerInfo(c *gin.Context) {
 		return
 	}
 	nodeServerInfoVo := vo.NodeServerInfoVo{
-		CpuUsed:  nodeServerInfo.CpuUsed,
-		MemUsed:  nodeServerInfo.MemUsed,
-		DiskUsed: nodeServerInfo.DiskUsed,
+		CpuUsed:                       nodeServerInfo.CpuUsed,
+		MemUsed:                       nodeServerInfo.MemUsed,
+		DiskUsed:                      nodeServerInfo.DiskUsed,
+		NetworkUploadBytesPerSecond:   nodeServerInfo.NetworkUploadBytesPerSecond,
+		NetworkDownloadBytesPerSecond: nodeServerInfo.NetworkDownloadBytesPerSecond,
+		SampledAt:                     nodeServerInfo.SampledAt,
 	}
 	vo.Success(nodeServerInfoVo, c)
 }
